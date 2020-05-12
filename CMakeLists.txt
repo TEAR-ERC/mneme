@@ -1,0 +1,10 @@
+cmake_minimum_required(VERSION 3.1)
+
+project(mneme VERSION 0.1 LANGUAGES CXX)
+
+add_executable(mneme test/mneme.cpp)
+target_compile_features(mneme PUBLIC cxx_std_17)
+target_include_directories(mneme PRIVATE include)
+
+enable_testing()
+add_test(NAME mneme COMMAND mneme)
