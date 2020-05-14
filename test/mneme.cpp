@@ -5,7 +5,8 @@
 #include "mneme/storage.hpp"
 #include "mneme/view.hpp"
 
-#include "catch2/catch.hpp"
+#include "doctest.h"
+
 
 using namespace mneme;
 
@@ -19,7 +20,7 @@ struct dofs { using type = double; };
 struct material { using type = ElasticMaterial; };
 struct bc { using type = std::array<int, 4>; };
 
-TEST_CASE( "Data structure works", "[mneme]") {
+TEST_CASE( "Data structure works") {
     int NghostP1 = 5;
     int NinteriorP1 = 100;
     int NinteriorP2 = 50;
@@ -41,7 +42,7 @@ TEST_CASE( "Data structure works", "[mneme]") {
     }
     auto dofsLayout = dofsPlan.getLayout();
 
-    SECTION ("MultiStorage works") {
+    SUBCASE ("MultiStorage works") {
 	using local_storage_t = MultiStorage<DataLayout::SoA, material, bc>;
 	local_storage_t localC(localLayout.back());
 	DenseView<local_storage_t> localView(localLayout, localC, NghostP1, N);
@@ -54,7 +55,7 @@ TEST_CASE( "Data structure works", "[mneme]") {
 	}
     }
 
-    SECTION ("SingleStorage works") {
+    SUBCASE ("SingleStorage works") {
 	using dofs_storage_t = SingleStorage<dofs>;
 	dofs_storage_t dofsC(dofsLayout.back());
 	StridedView<dofs_storage_t,4u> dofsV(dofsLayout, dofsC, 0, NghostP1 + NinteriorP1);
