@@ -1,11 +1,11 @@
 #include <iostream>
 #include <array>
 
-#include <mneme/plan.hpp>
-#include <mneme/storage.hpp>
-#include <mneme/view.hpp>
+#include "mneme/plan.hpp"
+#include "mneme/storage.hpp"
+#include "mneme/view.hpp"
 
-#include "test.h"
+#include "catch2/catch.hpp"
 
 using namespace mneme;
 
@@ -19,7 +19,7 @@ struct dofs { using type = double; };
 struct material { using type = ElasticMaterial; };
 struct bc { using type = std::array<int, 4>; };
 
-int main(int argc, char**) {
+TEST_CASE( "Data structure works", "[mneme]") {
     int NghostP1 = 5;
     int NinteriorP1 = 100;
     int NinteriorP2 = 50;
@@ -41,32 +41,34 @@ int main(int argc, char**) {
     }
     auto dofsLayout = dofsPlan.getLayout();
 
-    using local_storage_t = MultiStorage<DataLayout::SoA, material, bc>;
-    local_storage_t localC(localLayout.back());
-    DenseView<local_storage_t> localView(localLayout, localC, NghostP1, N);
-    for (int i = 0; i < localView.size(); ++i) {
-        localView[i].get<material>() = ElasticMaterial{1.0*i,1.0*i,2.0*i};
-    }
-    int i = 0;
-    for (auto&& v : localView) {
-        TEST(v.get<material>().lambda == 2.0*i++);
-    }
-
-    using dofs_storage_t = SingleStorage<dofs>;
-    dofs_storage_t dofsC(dofsLayout.back());
-    StridedView<dofs_storage_t,4u> dofsV(dofsLayout, dofsC, 0, NghostP1 + NinteriorP1);
-    int k = 0, l;
-    for (auto&& v : dofsV) {
-        l = 0;
-        for (auto&& vv : v) {
-            vv = k + 4*l++;
-        }
-        ++k;
-    }
-    for (std::size_t j = 0; j < NghostP1 + NinteriorP1; ++j) {
-        TEST(dofsC[j] == j/4 + 4*(j%4));
+    SECTION ("MultiStorage works") {
+	using local_storage_t = MultiStorage<DataLayout::SoA, material, bc>;
+	local_storage_t localC(localLayout.back());
+	DenseView<local_storage_t> localView(localLayout, localC, NghostP1, N);
+	for (int i = 0; i < localView.size(); ++i) {
+	    localView[i].get<material>() = ElasticMaterial{1.0*i,1.0*i,2.0*i};
+	}
+	int i = 0;
+	for (auto&& v : localView) {
+	    REQUIRE(v.get<material>().lambda == 2.0*i++);
+	}
     }
 
-    return 0;
+    SECTION ("SingleStorage works") {
+	using dofs_storage_t = SingleStorage<dofs>;
+	dofs_storage_t dofsC(dofsLayout.back());
+	StridedView<dofs_storage_t,4u> dofsV(dofsLayout, dofsC, 0, NghostP1 + NinteriorP1);
+	int k = 0, l;
+	for (auto&& v : dofsV) {
+	    l = 0;
+	    for (auto&& vv : v) {
+		vv = k + 4*l++;
+	    }
+	    ++k;
+	}
+	for (std::size_t j = 0; j < NghostP1 + NinteriorP1; ++j) {
+	    REQUIRE(dofsC[j] == j/4 + 4*(j%4));
+	}
+    }
+
 }
-
