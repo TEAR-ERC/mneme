@@ -4,9 +4,9 @@
 #include <cstddef>
 #include <vector>
 
-namespace mneme {
+#include "displs.hpp"
 
-using GeneralLayout = std::vector<std::size_t>;
+namespace mneme {
 
 class Plan {
 public:
@@ -14,14 +14,7 @@ public:
 
     void setDof(std::size_t elementNo, std::size_t dof) { dofs[elementNo] = dof; }
 
-    GeneralLayout getLayout() {
-        GeneralLayout layout(dofs.size() + 1);
-        layout[0] = 0;
-        for (std::size_t i = 0; i < dofs.size(); ++i) {
-            layout[i + 1] = layout[i] + dofs[i];
-        }
-        return layout;
-    }
+    Displs<std::size_t> getLayout() { return Displs(dofs); }
 
 private:
     std::vector<std::size_t> dofs;
