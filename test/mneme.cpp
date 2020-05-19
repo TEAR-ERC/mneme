@@ -51,7 +51,7 @@ TEST_CASE("Data structure works") {
         using local_storage_t = MultiStorage<DataLayout::SoA, material, bc>;
         local_storage_t localC(localLayout.back());
         DenseView<local_storage_t> localView(localLayout, localC, NghostP1, N);
-        for (int i = 0; i < localView.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(localView.size()); ++i) {
             localView[i].get<material>() = ElasticMaterial{1.0 * i, 1.0 * i, 2.0 * i};
         }
         int i = 0;
@@ -72,7 +72,7 @@ TEST_CASE("Data structure works") {
             }
             ++k;
         }
-        for (std::size_t j = 0; j < NghostP1 + NinteriorP1; ++j) {
+        for (int j = 0; j < NghostP1 + NinteriorP1; ++j) {
             REQUIRE(dofsC[j] == j / 4 + 4 * (j % 4));
         }
     }
