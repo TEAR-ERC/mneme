@@ -65,7 +65,7 @@ TEST_CASE("Data structure works") {
         dofs_storage_t dofsC(dofsLayout.back());
         StridedView<dofs_storage_t, 4U> dofsV(dofsLayout, dofsC, 0, NghostP1 + NinteriorP1);
         int k = 0;
-	int l = 0;
+        int l = 0;
         for (auto&& v : dofsV) {
             l = 0;
             for (auto&& vv : v) {
