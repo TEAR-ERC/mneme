@@ -17,13 +17,3 @@ set_target_properties(mneme-test PROPERTIES
     CXX_EXTENSIONS NO
 )
 doctest_discover_tests(mneme-test)
-
-add_executable(mneme-test-2 test/test_2.cpp)
-target_link_libraries(mneme-test-2 mneme-test-runner)
-set_target_properties(mneme-test-2 PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO
-)
-doctest_discover_tests(mneme-test-2)
-
