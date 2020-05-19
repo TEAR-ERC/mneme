@@ -10,10 +10,9 @@ namespace mneme {
 
 inline constexpr std::size_t dynamic_extent = std::numeric_limits<std::size_t>::max();
 
-template<typename T, std::size_t Extent = dynamic_extent>
-class span {
+template <typename T, std::size_t Extent = dynamic_extent> class span {
 public:
-    using iterator = Iterator<span<T,Extent>>;
+    using iterator = Iterator<span<T, Extent>>;
 
     span(T* base, std::size_t) : base(base) {}
 
@@ -24,14 +23,14 @@ public:
 
     iterator begin() { return iterator(this, 0); }
     iterator end() { return iterator(this, size()); }
+
 private:
     T* base = nullptr;
 };
 
-template<typename T>
-class span<T,dynamic_extent> {
+template <typename T> class span<T, dynamic_extent> {
 public:
-    using iterator = Iterator<span<T,dynamic_extent>>;
+    using iterator = Iterator<span<T, dynamic_extent>>;
 
     span(T* base, std::size_t extent) : base(base), extent(extent) {}
 
@@ -42,11 +41,12 @@ public:
 
     iterator begin() { return iterator(this, 0); }
     iterator end() { return iterator(this, size()); }
+
 private:
     T* base = nullptr;
     std::size_t extent;
 };
 
-}
+} // namespace mneme
 
 #endif // MNEME_SPAN_H_
