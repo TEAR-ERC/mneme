@@ -2,37 +2,36 @@
 #define MNEME_VIEW_H_
 
 #include <cstddef>
-#include <stdexcept>
 #include <sstream>
+#include <stdexcept>
 #include <vector>
 
 #include "iterator.hpp"
 
 namespace mneme {
 
-template<typename Storage, std::size_t Stride = dynamic_extent>
-class StridedView {
+template <typename Storage, std::size_t Stride = dynamic_extent> class StridedView {
 public:
     using offset_type = typename Storage::offset_type;
-	using iterator = Iterator<StridedView<Storage, Stride>>;
+    using iterator = Iterator<StridedView<Storage, Stride>>;
 
-    template<class Layout>
+    template <class Layout>
     StridedView(Layout const& layout, Storage& container, std::size_t from, std::size_t to)
-        : size_(to-from), container(container),
-          offset(container.offset(layout[from])) {
+        : size_(to - from), container(container), offset(container.offset(layout[from])) {
         if (!(to > from)) {
             throw std::runtime_error("'To' must be larger than 'from'.");
         }
         if constexpr (Stride == dynamic_extent) {
-            stride = layout[from+1]-layout[from];
+            stride = layout[from + 1] - layout[from];
         } else {
             stride = Stride;
         }
         for (std::size_t i = from; i < to; ++i) {
-            auto stridei = layout[i+1]-layout[i];
+            auto stridei = layout[i + 1] - layout[i];
             if (stridei != stride) {
                 std::stringstream ss;
-                ss << "Failed to construct strided view: Stride " << stridei << " != " << stride << " at " << from << ".";
+                ss << "Failed to construct strided view: Stride " << stridei << " != " << stride
+                   << " at " << from << ".";
                 throw std::runtime_error(ss.str());
             }
         }
@@ -45,7 +44,7 @@ public:
         } else {
             s = Stride;
         }
-        std::size_t from = localId*s;
+        std::size_t from = localId * s;
         return container.template get<Stride>(offset, from, from + s);
     }
 
@@ -60,20 +59,16 @@ private:
     offset_type offset;
 };
 
-template<typename Storage>
-using DenseView = StridedView<Storage,1u>;
+template <typename Storage> using DenseView = StridedView<Storage, 1u>;
 
-template<typename Storage>
-class GeneralView {
+template <typename Storage> class GeneralView {
 public:
     using offset_type = typename Storage::offset_type;
-	using iterator = Iterator<GeneralView<Storage>>;
+    using iterator = Iterator<GeneralView<Storage>>;
 
-    template<class Layout>
+    template <class Layout>
     GeneralView(Layout const& layout, Storage& container, std::size_t from, std::size_t to)
-        : size_(to-from),
-          sl(layout.begin()+from,layout.begin()+to),
-          container(container),
+        : size_(to - from), sl(layout.begin() + from, layout.begin() + to), container(container),
           offset(container.offset(layout[from])) {
         if (!(to > from)) {
             throw std::runtime_error("'To' must be larger than 'from'.");
@@ -81,7 +76,7 @@ public:
     }
 
     auto operator[](std::size_t localId) noexcept {
-        return container.get(offset, sl[localId], sl[localId+1]);
+        return container.get(offset, sl[localId], sl[localId + 1]);
     }
 
     std::size_t size() const noexcept { return size_; }
@@ -96,6 +91,6 @@ private:
     offset_type offset;
 };
 
-}
+} // namespace mneme
 
 #endif // MNEME_VIEW_H_
