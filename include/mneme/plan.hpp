@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <vector>
 
-#include "displs.hpp"
+#include "displacements.hpp"
 
 namespace mneme {
 
@@ -14,7 +14,7 @@ public:
 
     void setDof(std::size_t elementNo, std::size_t dof) { dofs[elementNo] = dof; }
 
-    Displs<std::size_t> getLayout() { return Displs(dofs); }
+    Displacements<std::size_t> getLayout() { return Displacements(dofs); }
 
 private:
     std::vector<std::size_t> dofs;
