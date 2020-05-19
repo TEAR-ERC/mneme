@@ -57,6 +57,35 @@ private:
     std::size_t p, i;
 };
 
+/**
+ * @brief General data layout class
+ *
+ * Assume you have ids i=0,...,N-1 and with each id you want to associate n_i items.
+ * The items shall be stored contiguously in array A.
+ *
+ * So if
+ * Displs<int> displs({n_0,...,n_{N-1}});
+ * then
+ * A[displs[i]] is the first item of of id i and A[displs[i+1]-1] is the last.
+ *
+ * Note also that displs[N] is defined as the total number of items, such that you may also recover
+ * n_i = displs[i+1] - displs[i];
+ *
+ * Moreover, an iterator may be used for the pattern
+ * for (int i = 0; i < N; ++i) {
+ *     for (int j = displs[i]; j < displs[i+1]; ++j) {
+ *         ...
+ *     }
+ * }
+ * i.e.
+ * for (auto [i,j] : displs) {
+ *     ...
+ * }
+ *
+ * This class can also be used in conjunction with MPI_Alltoallv.
+ *
+ * @tparam IntT integer type
+ */
 template <typename IntT> class Displs {
 public:
     Displs() : displs(1, 0) {}
