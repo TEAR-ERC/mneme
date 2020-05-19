@@ -16,3 +16,7 @@ target_include_directories(mneme-test-runner PUBLIC include external)
 add_executable(mneme-test test/mneme.cpp)
 target_link_libraries(mneme-test mneme-test-runner)
 doctest_discover_tests(mneme-test)
+
+add_executable(displacements-test test/displacements.cpp)
+target_link_libraries(displacements-test mneme-test-runner)
+doctest_discover_tests(displacements-test)
