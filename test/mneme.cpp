@@ -63,8 +63,9 @@ TEST_CASE("Data structure works") {
     SUBCASE("SingleStorage works") {
         using dofs_storage_t = SingleStorage<dofs>;
         dofs_storage_t dofsC(dofsLayout.back());
-        StridedView<dofs_storage_t, 4u> dofsV(dofsLayout, dofsC, 0, NghostP1 + NinteriorP1);
-        int k = 0, l;
+        StridedView<dofs_storage_t, 4U> dofsV(dofsLayout, dofsC, 0, NghostP1 + NinteriorP1);
+        int k = 0;
+	int l = 0;
         for (auto&& v : dofsV) {
             l = 0;
             for (auto&& vv : v) {
