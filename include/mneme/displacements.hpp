@@ -48,14 +48,14 @@ public:
 
 private:
     void next() {
-        while (i >= displs[p + 1] && p < displs.size() - 1) {
+        while (i >= displs[p + 1] && p < static_cast<IntT>(displs.size()) - 1) {
             ++p;
             i = displs[p];
         }
     }
 
     std::vector<IntT> const& displs;
-    std::size_t p, i;
+    IntT p, i;
 };
 
 /**
