@@ -1,5 +1,6 @@
 #include <array>
 #include <iostream>
+#include <optional>
 
 #include "mneme/plan.hpp"
 #include "mneme/storage.hpp"
@@ -24,6 +25,10 @@ struct material {
 struct bc {
     using type = std::array<int, 4>;
 };
+
+struct Ghost : public Layer {};
+struct Interior : public Layer {};
+struct Copy : public Layer {};
 
 TEST_CASE("Data structure works") {
     int NghostP1 = 5;
@@ -76,5 +81,39 @@ TEST_CASE("Data structure works") {
         for (int j = 0; j < NghostP1 + NinteriorP1; ++j) {
             REQUIRE(dofsC[j] == j / 4 + 4 * (j % 4));
         }
+    }
+}
+
+TEST_CASE("Layered Planums") {
+    constexpr size_t numInumterior = 100;
+    constexpr size_t numCopy = 30;
+    constexpr size_t numGhost = 20;
+    constexpr size_t numDofsInumterior = 10;
+    constexpr size_t numDofsCopy = 7;
+    constexpr size_t numDofsGhost = 4;
+    auto dofsInumterior = [numDofsInumterior](auto) { return numDofsInumterior; };
+    auto dofsCopy = [numDofsCopy](auto) { return numDofsCopy; };
+    auto dofsGhost = [numDofsGhost](auto) { return numDofsGhost; };
+    const auto planum = LayeredPlan()
+                            .setDofs<Interior>(numInumterior, dofsInumterior)
+                            .setDofs<Copy>(numCopy, dofsCopy)
+                            .setDofs<Ghost>(numGhost, dofsGhost);
+    CHECK(std::is_same_v<decltype(planum), const LayeredPlan<Interior, Copy, Ghost>>);
+    const auto localLayout = planum.getLayout();
+
+    CHECK(localLayout.size() == numInumterior + numCopy + numGhost);
+    size_t curOffset = 0;
+    size_t i = 0;
+    for (; i < numInumterior; ++i) {
+        CHECK(localLayout[i] == curOffset);
+        curOffset += numDofsInumterior;
+    }
+    for (; i < numCopy; ++i) {
+        CHECK(localLayout[i] == curOffset);
+        curOffset += numDofsCopy;
+    }
+    for (; i < numGhost; ++i) {
+        CHECK(localLayout[i] == curOffset);
+        curOffset += numDofsGhost;
     }
 }
