@@ -1,4 +1,5 @@
 #include <array>
+#include <functional>
 #include <iostream>
 #include <optional>
 
@@ -84,29 +85,29 @@ TEST_CASE("Data structure works") {
     }
 }
 
-TEST_CASE("Layered Planums") {
-    constexpr size_t numInumterior = 100;
+TEST_CASE("Layered Plans") {
+    constexpr size_t numInterior = 100;
     constexpr size_t numCopy = 30;
     constexpr size_t numGhost = 20;
-    constexpr size_t numDofsInumterior = 10;
+    constexpr size_t numDofsInterior = 10;
     constexpr size_t numDofsCopy = 7;
     constexpr size_t numDofsGhost = 4;
-    auto dofsInumterior = [numDofsInumterior](auto) { return numDofsInumterior; };
-    auto dofsCopy = [numDofsCopy](auto) { return numDofsCopy; };
-    auto dofsGhost = [numDofsGhost](auto) { return numDofsGhost; };
-    const auto planum = LayeredPlan()
-                            .setDofs<Interior>(numInumterior, dofsInumterior)
-                            .setDofs<Copy>(numCopy, dofsCopy)
-                            .setDofs<Ghost>(numGhost, dofsGhost);
-    CHECK(std::is_same_v<decltype(planum), const LayeredPlan<Interior, Copy, Ghost>>);
-    const auto localLayout = planum.getLayout();
+    constexpr auto dofsInterior = [numDofsInterior](auto) { return numDofsInterior; };
+    constexpr auto dofsCopy = [numDofsCopy](auto) { return numDofsCopy; };
+    constexpr auto dofsGhost = [numDofsGhost](auto) { return numDofsGhost; };
+    const auto plan = LayeredPlan()
+                          .setDofs<Interior>(numInterior, dofsInterior)
+                          .setDofs<Copy>(numCopy, dofsCopy)
+                          .setDofs<Ghost>(numGhost, dofsGhost);
+    CHECK(std::is_same_v<decltype(plan), const LayeredPlan<Interior, Copy, Ghost>>);
+    const auto localLayout = plan.getLayout();
 
-    CHECK(localLayout.size() == numInumterior + numCopy + numGhost);
+    CHECK(localLayout.size() == numInterior + numCopy + numGhost);
     size_t curOffset = 0;
     size_t i = 0;
-    for (; i < numInumterior; ++i) {
+    for (; i < numInterior; ++i) {
         CHECK(localLayout[i] == curOffset);
-        curOffset += numDofsInumterior;
+        curOffset += numDofsInterior;
     }
     for (; i < numCopy; ++i) {
         CHECK(localLayout[i] == curOffset);
@@ -115,5 +116,29 @@ TEST_CASE("Layered Planums") {
     for (; i < numGhost; ++i) {
         CHECK(localLayout[i] == curOffset);
         curOffset += numDofsGhost;
+    }
+
+    SUBCASE("SingleStorage works") {
+        using dofs_storage_t = SingleStorage<dofs>;
+        dofs_storage_t dofsC(localLayout.back());
+
+        auto viewFactory = createView().withStride<10>().withPlan(plan).withStorage(dofsC);
+        // auto view = viewFactory.createView<Ghost>();
+        // auto dofsV = viewFactory.createView<Interior>();
+        auto dofsV =
+            stridedViewFromLayer<Interior, decltype(plan), dofs_storage_t, 10U>(plan, dofsC);
+        // StridedView<dofs_storage_t, numDofsInterior> dofsV(localLayout, dofsC, 0, numInterior);
+        int k = 0;
+        int l = 0;
+        for (auto&& v : dofsV) {
+            l = 0;
+            for (auto&& vv : v) {
+                vv = k + 10 * l++;
+            }
+            ++k;
+        }
+        for (int j = 0; j < numInterior; ++j) {
+            CHECK(dofsC[j] == j / 10 + 10 * (j % 10));
+        }
     }
 }

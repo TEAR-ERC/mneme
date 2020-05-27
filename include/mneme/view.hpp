@@ -18,7 +18,7 @@ public:
     template <class Layout>
     StridedView(Layout const& layout, Storage& container, std::size_t from, std::size_t to)
         : size_(to - from), container(container), offset(container.offset(layout[from])) {
-        if (!(to > from)) {
+        if (to <= from) {
             throw std::runtime_error("'To' must be larger than 'from'.");
         }
         if constexpr (Stride == dynamic_extent) {
@@ -48,7 +48,7 @@ public:
         return container.template get<Stride>(offset, from, from + s);
     }
 
-    std::size_t size() const noexcept { return size_; }
+    [[nodiscard]] std::size_t size() const noexcept { return size_; }
 
     iterator begin() { return iterator(this, 0); }
     iterator end() { return iterator(this, size()); }
