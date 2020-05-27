@@ -89,55 +89,76 @@ TEST_CASE("Layered Plans") {
     constexpr size_t numInterior = 100;
     constexpr size_t numCopy = 30;
     constexpr size_t numGhost = 20;
+
+    constexpr size_t numMaterial = 1;
+    constexpr auto numMaterialFunc = [numMaterial](auto) { return numMaterial; };
+    const auto localPlan = LayeredPlan()
+                               .setDofs<Interior>(numInterior, numMaterialFunc)
+                               .setDofs<Copy>(numInterior, numMaterialFunc)
+                               .setDofs<Ghost>(numInterior, numMaterialFunc);
+    const auto localLayout = localPlan.getLayout();
+    CHECK(std::is_same_v<decltype(localPlan), const LayeredPlan<Interior, Copy, Ghost>>);
+
     constexpr size_t numDofsInterior = 10;
     constexpr size_t numDofsCopy = 7;
     constexpr size_t numDofsGhost = 4;
     constexpr auto dofsInterior = [numDofsInterior](auto) { return numDofsInterior; };
     constexpr auto dofsCopy = [numDofsCopy](auto) { return numDofsCopy; };
     constexpr auto dofsGhost = [numDofsGhost](auto) { return numDofsGhost; };
-    const auto plan = LayeredPlan()
-                          .setDofs<Interior>(numInterior, dofsInterior)
-                          .setDofs<Copy>(numCopy, dofsCopy)
-                          .setDofs<Ghost>(numGhost, dofsGhost);
-    CHECK(std::is_same_v<decltype(plan), const LayeredPlan<Interior, Copy, Ghost>>);
-    const auto localLayout = plan.getLayout();
+    const auto dofsPlan = LayeredPlan()
+                              .setDofs<Interior>(numInterior, dofsInterior)
+                              .setDofs<Copy>(numCopy, dofsCopy)
+                              .setDofs<Ghost>(numGhost, dofsGhost);
+    CHECK(std::is_same_v<decltype(dofsPlan), const LayeredPlan<Interior, Copy, Ghost>>);
+    const auto dofsLayout = dofsPlan.getLayout();
 
-    CHECK(localLayout.size() == numInterior + numCopy + numGhost);
+    CHECK(dofsLayout.size() == numInterior + numCopy + numGhost);
     size_t curOffset = 0;
     size_t i = 0;
     for (; i < numInterior; ++i) {
-        CHECK(localLayout[i] == curOffset);
+        CHECK(dofsLayout[i] == curOffset);
         curOffset += numDofsInterior;
     }
     for (; i < numCopy; ++i) {
-        CHECK(localLayout[i] == curOffset);
+        CHECK(dofsLayout[i] == curOffset);
         curOffset += numDofsCopy;
     }
     for (; i < numGhost; ++i) {
-        CHECK(localLayout[i] == curOffset);
+        CHECK(dofsLayout[i] == curOffset);
         curOffset += numDofsGhost;
     }
 
+    SUBCASE("MultiStorage works") {
+        using local_storage_t = MultiStorage<DataLayout::SoA, material, bc>;
+        local_storage_t localC(localLayout.back());
+        auto materialViewFactory = createView().withPlan(localPlan).withStorage(localC);
+        auto localViewCopy = materialViewFactory.createDenseView<Copy>();
+
+        for (int i = 0; i < static_cast<int>(localViewCopy.size()); ++i) {
+            localViewCopy[i].get<material>() = ElasticMaterial{1.0 * i, 1.0 * i, 2.0 * i};
+        }
+        int i = 0;
+        for (auto&& v : localViewCopy) {
+            REQUIRE(v.get<material>().lambda == 2.0 * i++);
+        }
+    }
     SUBCASE("SingleStorage works") {
         using dofs_storage_t = SingleStorage<dofs>;
-        dofs_storage_t dofsC(localLayout.back());
+        dofs_storage_t dofsC(dofsLayout.back());
 
-        auto viewFactory = createView().withStride<10>().withPlan(plan).withStorage(dofsC);
-        // auto view = viewFactory.createView<Ghost>();
-        // auto dofsV = viewFactory.createView<Interior>();
-        auto dofsV =
-            stridedViewFromLayer<Interior, decltype(plan), dofs_storage_t, 10U>(plan, dofsC);
-        // StridedView<dofs_storage_t, numDofsInterior> dofsV(localLayout, dofsC, 0, numInterior);
+        auto dofsViewFactory = createView().withPlan(dofsPlan).withStorage(dofsC);
+        auto dofsViewInterior =
+            dofsViewFactory.withStride<numDofsInterior>().createStridedView<Interior>();
         int k = 0;
         int l = 0;
-        for (auto&& v : dofsV) {
+        for (auto&& v : dofsViewInterior) {
             l = 0;
             for (auto&& vv : v) {
                 vv = k + 10 * l++;
             }
             ++k;
         }
-        for (int j = 0; j < numInterior; ++j) {
+        for (size_t j = 0; j < numInterior; ++j) {
             CHECK(dofsC[j] == j / 10 + 10 * (j % 10));
         }
     }
