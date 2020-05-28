@@ -2,6 +2,7 @@
 #define MNEME_PLAN_H_
 
 #include <cstddef>
+#include <memory>
 #include <vector>
 
 #include "displacements.hpp"
@@ -34,8 +35,13 @@ public:
 };
 
 template <typename... Layers> class LayeredPlan {
+    template <typename... OtherLayers> friend class LayeredPlan;
+
 public:
     LayeredPlan() : plan(0){};
+
+    LayeredPlan(size_t curOffset, size_t numElements, Plan plan, std::tuple<Layers...> layers)
+        : curOffset(curOffset), numElements(numElements), plan(plan), layers(layers) {}
 
     template <typename OtherPlanT>
     explicit LayeredPlan(OtherPlanT otherPlan) : plan(otherPlan.plan) {
@@ -54,16 +60,18 @@ public:
 
     template <typename Layer, typename Func> auto setDofs(size_t numElementsLayer, Func func) {
         auto newPlan = LayeredPlan<Layers..., Layer>(*this);
+        auto& newLayer = std::get<Layer>(newPlan.layers);
+        newLayer.numElements = numElementsLayer;
+        newLayer.offset = curOffset;
+        const auto newCurOffset = curOffset + numElementsLayer;
+        const auto newNumElements = numElements + numElementsLayer;
+        newPlan.curOffset = newCurOffset;
+        newPlan.numElements = newNumElements;
 
-        auto& layer = std::get<Layer>(newPlan.layers);
-        layer.numElements = numElementsLayer;
-        layer.offset = newPlan.curOffset;
-        newPlan.curOffset += numElementsLayer;
-        newPlan.numElements += numElementsLayer;
+        newPlan.plan.resize(newNumElements);
 
-        newPlan.plan.resize(newPlan.numElements);
-        for (size_t i = 0; i < layer.numElements; ++i) {
-            newPlan.plan.setDof(i + layer.offset, func(i));
+        for (size_t i = 0; i < newLayer.numElements; ++i) {
+            newPlan.plan.setDof(i + newLayer.offset, func(i));
         }
         return newPlan;
     }
@@ -72,87 +80,12 @@ public:
 
     template <typename T> auto getLayer() const { return std::get<T>(layers); }
 
-public:
-    // TODO(Lukas) Private
+private:
     std::tuple<Layers...> layers;
     size_t curOffset = 0;
     size_t numElements = 0;
     Plan plan;
 };
-
-struct StaticNothing {};
-
-template <typename T> struct StaticSome {
-    constexpr explicit StaticSome(T value) : value(value) {}
-    using type = T;
-    T value;
-};
-
-template <typename MaybeStride = StaticNothing, typename MaybePlan = StaticNothing,
-          typename MaybeStorage = StaticNothing>
-class LayeredViewFactory {
-
-public:
-    MaybePlan maybePlan;
-    MaybeStorage maybeStorage;
-
-    constexpr LayeredViewFactory() = default;
-
-    constexpr LayeredViewFactory(MaybePlan maybePlan, MaybeStorage maybeStorage)
-        : maybePlan(maybePlan), maybeStorage(maybeStorage) {}
-
-    template <std::size_t Stride> constexpr auto withStride() {
-        return LayeredViewFactory<std::integral_constant<size_t, Stride>, MaybePlan, MaybeStorage>(
-            maybePlan, maybeStorage);
-    }
-
-    constexpr auto withDynamicStride() { return withStride<dynamic_extent>(); }
-
-    template <typename LayeredPlanT> auto withPlan(LayeredPlanT& plan) {
-        const auto somePlan = StaticSome<LayeredPlanT>(plan);
-        return LayeredViewFactory<MaybeStride, StaticSome<LayeredPlanT>, MaybeStorage>(
-            somePlan, maybeStorage);
-    }
-
-    template <typename StorageT> constexpr auto withStorage(StorageT& storage) {
-        const auto someStorage = StaticSome<StorageT*>(&storage);
-        return LayeredViewFactory<MaybeStride, MaybePlan, StaticSome<StorageT*>>(maybePlan,
-                                                                                 someStorage);
-    }
-
-    template <
-        typename Layer, typename MaybeStride_ = MaybeStride, typename MaybePlan_ = MaybePlan,
-        typename MaybeStorage_ = MaybeStorage,
-        typename std::enable_if<!std::is_same<MaybeStride_, StaticNothing>::value, int>::type = 0,
-        typename std::enable_if<!std::is_same<MaybePlan_, StaticNothing>::value, int>::type = 0,
-        typename std::enable_if<!std::is_same<MaybeStorage_, StaticNothing>::value, int>::type = 0>
-    constexpr auto createStridedView() {
-        auto layout = maybePlan.value.getLayout();
-        const auto& layer = maybePlan.value.template getLayer<Layer>();
-        size_t from = layer.offset;
-        size_t to = from + layer.numElements;
-        return StridedView<std::remove_pointer_t<typename MaybeStorage_::type>,
-                MaybeStride::value>(layout, *(maybeStorage.value), from, to);
-    }
-
-    template <
-        typename Layer, typename MaybeStride_ = MaybeStride, typename MaybePlan_ = MaybePlan,
-        typename MaybeStorage_ = MaybeStorage,
-        typename std::enable_if<std::is_same<MaybeStride_, StaticNothing>::value, int>::type = 0,
-        typename std::enable_if<!std::is_same<MaybePlan_, StaticNothing>::value, int>::type = 0,
-        typename std::enable_if<!std::is_same<MaybeStorage_, StaticNothing>::value, int>::type = 0>
-    constexpr auto createDenseView() {
-        auto layout = maybePlan.value.getLayout();
-        const auto& layer = maybePlan.value.template getLayer<Layer>();
-        size_t from = layer.offset;
-        size_t to = from + layer.numElements;
-        return DenseView<std::remove_pointer_t<typename MaybeStorage_::type>>(layout, *(maybeStorage.value), from, to);
-    }
-};
-
-constexpr auto createView() {
-    return LayeredViewFactory<StaticNothing, StaticNothing, StaticNothing>();
-}
 
 } // namespace mneme
 
