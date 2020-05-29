@@ -93,11 +93,29 @@ TEST_CASE("Layered Plans") {
     constexpr size_t numMaterial = 1;
     constexpr auto numMaterialFunc = [numMaterial](auto) { return numMaterial; };
     const auto localPlan = LayeredPlan()
-                               .setDofs<Interior>(numInterior, numMaterialFunc)
-                               .setDofs<Copy>(numInterior, numMaterialFunc)
-                               .setDofs<Ghost>(numInterior, numMaterialFunc);
-    const auto localLayout = localPlan.getLayout();
+                               .withDofs<Interior>(numInterior, numMaterialFunc)
+                               .withDofs<Copy>(numInterior, numMaterialFunc)
+                               .withDofs<Ghost>(numInterior, numMaterialFunc);
+    const auto& localLayout = localPlan.getLayout();
     CHECK(std::is_same_v<decltype(localPlan), const LayeredPlan<Interior, Copy, Ghost>>);
+
+    SUBCASE("Layout is cached") {
+        const auto& localLayout2 = localPlan.getLayout();
+        CHECK(&localLayout == &localLayout2);
+        CHECK(localLayout.data() == localLayout2.data());
+    }
+    SUBCASE("Caching of layout is invalidated") {
+        const auto tmpPlan = LayeredPlan()
+                                 .withDofs<Interior>(numInterior, numMaterialFunc)
+                                 .withDofs<Copy>(numInterior, numMaterialFunc);
+        [[maybe_unused]] const auto& tmpLayout = tmpPlan.getLayout();
+        const auto localPlan2 = tmpPlan.withDofs<Ghost>(numInterior, numMaterialFunc);
+        const auto& localLayout2 = localPlan2.getLayout();
+        CHECK(localLayout.size() == localLayout2.size());
+        for (size_t i = 0; i < localLayout.size(); ++i) {
+            CHECK(localLayout[i] == localLayout2[i]);
+        }
+    }
 
     constexpr size_t numDofsInterior = 10;
     constexpr size_t numDofsCopy = 7;
@@ -106,9 +124,9 @@ TEST_CASE("Layered Plans") {
     constexpr auto dofsCopy = [numDofsCopy](auto) { return numDofsCopy; };
     constexpr auto dofsGhost = [numDofsGhost](auto) { return numDofsGhost; };
     const auto dofsPlan = LayeredPlan()
-                              .setDofs<Interior>(numInterior, dofsInterior)
-                              .setDofs<Copy>(numCopy, dofsCopy)
-                              .setDofs<Ghost>(numGhost, dofsGhost);
+                              .withDofs<Interior>(numInterior, dofsInterior)
+                              .withDofs<Copy>(numCopy, dofsCopy)
+                              .withDofs<Ghost>(numGhost, dofsGhost);
     CHECK(std::is_same_v<decltype(dofsPlan), const LayeredPlan<Interior, Copy, Ghost>>);
     const auto dofsLayout = dofsPlan.getLayout();
 

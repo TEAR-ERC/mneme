@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "displacements.hpp"
@@ -14,12 +15,13 @@ namespace mneme {
 
 class Plan {
 public:
+    using LayoutType = Displacements<std::size_t>;
     explicit Plan(std::size_t numElements) : dofs(numElements, 0) {}
 
     void setDof(std::size_t elementNo, std::size_t dof) { dofs[elementNo] = dof; }
 
     void resize(std::size_t newSize) { dofs.resize(newSize); }
-    [[nodiscard]] Displacements<std::size_t> getLayout() const { return Displacements(dofs); }
+    [[nodiscard]] LayoutType getLayout() const { return Displacements(dofs); }
 
 private:
     std::vector<std::size_t> dofs;
@@ -38,10 +40,12 @@ template <typename... Layers> class LayeredPlan {
     template <typename... OtherLayers> friend class LayeredPlan;
 
 public:
+    using LayoutT = Displacements<size_t>;
     LayeredPlan() : plan(0){};
 
     LayeredPlan(size_t curOffset, size_t numElements, Plan plan, std::tuple<Layers...> layers)
-        : curOffset(curOffset), numElements(numElements), plan(plan), layers(layers) {}
+        : curOffset(curOffset), numElements(numElements), plan(std::move(plan)), layers(layers),
+          layout(std::nullopt) {}
 
     template <typename OtherPlanT>
     explicit LayeredPlan(OtherPlanT otherPlan) : plan(otherPlan.plan) {
@@ -58,7 +62,8 @@ public:
             otherPlan.layers);
     }
 
-    template <typename Layer, typename Func> auto setDofs(size_t numElementsLayer, Func func) {
+    template <typename Layer, typename Func>
+    LayeredPlan<Layers..., Layer> withDofs(size_t numElementsLayer, Func func) const {
         auto newPlan = LayeredPlan<Layers..., Layer>(*this);
         auto& newLayer = std::get<Layer>(newPlan.layers);
         newLayer.numElements = numElementsLayer;
@@ -76,15 +81,21 @@ public:
         return newPlan;
     }
 
-    auto getLayout() const { return plan.getLayout(); }
+    const LayoutT& getLayout() const {
+        if (layout == std::nullopt) {
+            layout = plan.getLayout();
+        }
+        return *layout;
+    }
 
-    template <typename T> auto getLayer() const { return std::get<T>(layers); }
+    template <typename T> T getLayer() const { return std::get<T>(layers); }
 
 private:
     std::tuple<Layers...> layers;
     size_t curOffset = 0;
     size_t numElements = 0;
     Plan plan;
+    mutable std::optional<LayoutT> layout;
 };
 
 } // namespace mneme

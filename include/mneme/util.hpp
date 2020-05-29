@@ -1,6 +1,7 @@
 #ifndef MNEME_UTIL_H
 #define MNEME_UTIL_H
 
+namespace mneme {
 struct StaticNothing {};
 
 template <typename T> struct StaticSome {
@@ -8,4 +9,6 @@ template <typename T> struct StaticSome {
     using type = T;
     T value;
 };
+
+} // namespace mneme
 #endif // MNEME_UTIL_H
