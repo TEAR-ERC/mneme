@@ -32,18 +32,19 @@ public:
     constexpr Layer() = default;
     constexpr Layer(std::size_t numElements, std::size_t offset)
         : numElements(numElements), offset(offset) {}
-    size_t numElements = 0;
-    size_t offset = 0;
+    std::size_t numElements = 0;
+    std::size_t offset = 0;
 };
 
 template <typename... Layers> class LayeredPlan {
     template <typename... OtherLayers> friend class LayeredPlan;
 
 public:
-    using LayoutT = Displacements<size_t>;
+    using LayoutT = Displacements<std::size_t>;
     LayeredPlan() : plan(0){};
 
-    LayeredPlan(size_t curOffset, size_t numElements, Plan plan, std::tuple<Layers...> layers)
+    LayeredPlan(std::size_t curOffset, std::size_t numElements, Plan plan,
+                std::tuple<Layers...> layers)
         : curOffset(curOffset), numElements(numElements), plan(std::move(plan)), layers(layers),
           layout(std::nullopt) {}
 
@@ -52,6 +53,7 @@ public:
         this->curOffset = otherPlan.curOffset;
         this->numElements = otherPlan.numElements;
         this->plan = otherPlan.plan;
+        // Copy all entries of old tuple into new tuple.
         std::apply(
             [&](auto&&... args) {
                 (((std::get<typename std::remove_reference_t<std::remove_const_t<decltype(args)>>>(
@@ -63,7 +65,7 @@ public:
     }
 
     template <typename Layer, typename Func>
-    LayeredPlan<Layers..., Layer> withDofs(size_t numElementsLayer, Func func) const {
+    LayeredPlan<Layers..., Layer> withDofs(std::size_t numElementsLayer, Func func) const {
         auto newPlan = LayeredPlan<Layers..., Layer>(*this);
         auto& newLayer = std::get<Layer>(newPlan.layers);
         newLayer.numElements = numElementsLayer;
@@ -75,7 +77,7 @@ public:
 
         newPlan.plan.resize(newNumElements);
 
-        for (size_t i = 0; i < newLayer.numElements; ++i) {
+        for (std::size_t i = 0; i < newLayer.numElements; ++i) {
             newPlan.plan.setDof(i + newLayer.offset, func(i));
         }
         return newPlan;
@@ -92,8 +94,8 @@ public:
 
 private:
     std::tuple<Layers...> layers;
-    size_t curOffset = 0;
-    size_t numElements = 0;
+    std::size_t curOffset = 0;
+    std::size_t numElements = 0;
     Plan plan;
     mutable std::optional<LayoutT> layout;
 };

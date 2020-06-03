@@ -86,11 +86,11 @@ TEST_CASE("Data structure works") {
 }
 
 TEST_CASE("Layered Plans") {
-    constexpr size_t numInterior = 100;
-    constexpr size_t numCopy = 30;
-    constexpr size_t numGhost = 20;
+    constexpr std::size_t numInterior = 100;
+    constexpr std::size_t numCopy = 30;
+    constexpr std::size_t numGhost = 20;
 
-    constexpr size_t numMaterial = 1;
+    constexpr std::size_t numMaterial = 1;
     constexpr auto numMaterialFunc = [numMaterial](auto) { return numMaterial; };
     const auto localPlan = LayeredPlan()
                                .withDofs<Interior>(numInterior, numMaterialFunc)
@@ -112,14 +112,14 @@ TEST_CASE("Layered Plans") {
         const auto localPlan2 = tmpPlan.withDofs<Ghost>(numInterior, numMaterialFunc);
         const auto& localLayout2 = localPlan2.getLayout();
         CHECK(localLayout.size() == localLayout2.size());
-        for (size_t i = 0; i < localLayout.size(); ++i) {
+        for (std::size_t i = 0; i < localLayout.size(); ++i) {
             CHECK(localLayout[i] == localLayout2[i]);
         }
     }
 
-    constexpr size_t numDofsInterior = 10;
-    constexpr size_t numDofsCopy = 7;
-    constexpr size_t numDofsGhost = 4;
+    constexpr std::size_t numDofsInterior = 10;
+    constexpr std::size_t numDofsCopy = 7;
+    constexpr std::size_t numDofsGhost = 4;
     constexpr auto dofsInterior = [numDofsInterior](auto) { return numDofsInterior; };
     constexpr auto dofsCopy = [numDofsCopy](auto) { return numDofsCopy; };
     constexpr auto dofsGhost = [numDofsGhost](auto) { return numDofsGhost; };
@@ -131,8 +131,8 @@ TEST_CASE("Layered Plans") {
     const auto dofsLayout = dofsPlan.getLayout();
 
     CHECK(dofsLayout.size() == numInterior + numCopy + numGhost);
-    size_t curOffset = 0;
-    size_t i = 0;
+    std::size_t curOffset = 0;
+    std::size_t i = 0;
     for (; i < numInterior; ++i) {
         CHECK(dofsLayout[i] == curOffset);
         curOffset += numDofsInterior;
@@ -149,7 +149,7 @@ TEST_CASE("Layered Plans") {
     SUBCASE("MultiStorage works") {
         using local_storage_t = MultiStorage<DataLayout::SoA, material, bc>;
         local_storage_t localC(localLayout.back());
-        auto materialViewFactory = createView().withPlan(localPlan).withStorage(localC);
+        auto materialViewFactory = createViewFactory().withPlan(localPlan).withStorage(localC);
         auto localViewCopy = materialViewFactory.createDenseView<Copy>();
 
         for (int i = 0; i < static_cast<int>(localViewCopy.size()); ++i) {
@@ -164,7 +164,7 @@ TEST_CASE("Layered Plans") {
         using dofs_storage_t = SingleStorage<dofs>;
         dofs_storage_t dofsC(dofsLayout.back());
 
-        auto dofsViewFactory = createView().withPlan(dofsPlan).withStorage(dofsC);
+        auto dofsViewFactory = createViewFactory().withPlan(dofsPlan).withStorage(dofsC);
         auto dofsViewInterior =
             dofsViewFactory.withStride<numDofsInterior>().createStridedView<Interior>();
         int k = 0;
@@ -176,7 +176,7 @@ TEST_CASE("Layered Plans") {
             }
             ++k;
         }
-        for (size_t j = 0; j < numInterior; ++j) {
+        for (std::size_t j = 0; j < numInterior; ++j) {
             CHECK(dofsC[j] == j / 10 + 10 * (j % 10));
         }
     }

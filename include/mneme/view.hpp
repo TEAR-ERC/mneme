@@ -103,8 +103,8 @@ public:
         : maybePlan(maybePlan), maybeStorage(maybeStorage) {}
 
     template <std::size_t Stride>[[nodiscard]] auto withStride() const {
-        return LayeredViewFactory<std::integral_constant<size_t, Stride>, MaybePlan, MaybeStorage>(
-            maybePlan, maybeStorage);
+        return LayeredViewFactory<std::integral_constant<std::size_t, Stride>, MaybePlan,
+                                  MaybeStorage>(maybePlan, maybeStorage);
     }
 
     [[nodiscard]] auto withDynamicStride() const { return withStride<dynamic_extent>(); }
@@ -130,8 +130,8 @@ public:
     [[nodiscard]] auto createStridedView() const {
         auto layout = maybePlan.value.getLayout();
         const auto& layer = maybePlan.value.template getLayer<Layer>();
-        size_t from = layer.offset;
-        size_t to = from + layer.numElements;
+        std::size_t from = layer.offset;
+        std::size_t to = from + layer.numElements;
         return StridedView<std::remove_pointer_t<typename MaybeStorage_::type>, MaybeStride::value>(
             layout, *(maybeStorage.value), from, to);
     }
@@ -145,8 +145,8 @@ public:
     constexpr auto createDenseView() {
         auto layout = maybePlan.value.getLayout();
         const auto& layer = maybePlan.value.template getLayer<Layer>();
-        size_t from = layer.offset;
-        size_t to = from + layer.numElements;
+        std::size_t from = layer.offset;
+        std::size_t to = from + layer.numElements;
         return DenseView<std::remove_pointer_t<typename MaybeStorage_::type>>(
             layout, *(maybeStorage.value), from, to);
     }
@@ -156,7 +156,7 @@ private:
     MaybeStorage maybeStorage;
 };
 
-constexpr auto createView() {
+constexpr auto createViewFactory() {
     return LayeredViewFactory<StaticNothing, StaticNothing, StaticNothing>();
 }
 
