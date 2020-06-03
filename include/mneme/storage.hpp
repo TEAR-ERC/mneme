@@ -119,6 +119,7 @@ public:
     }
 
     void resize(std::size_t size) {
+        size_ = size;
         allocate_policy_t::deallocate(values);
         allocate_policy_t::allocate(values, size);
     }
@@ -131,7 +132,7 @@ public:
     iterator end() { return iterator(this, size()); }
 
 private:
-    std::size_t size_;
+    std::size_t size_ = 0u;
     type values = allocate_policy_t::null();
 };
 
