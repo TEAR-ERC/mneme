@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "iterator.hpp"
+#include "plan.hpp"
 #include "util.hpp"
 
 namespace mneme {
@@ -93,45 +94,65 @@ private:
 };
 
 template <typename MaybeStride = StaticNothing, typename MaybePlan = StaticNothing,
-          typename MaybeStorage = StaticNothing>
+          typename MaybeStorage = StaticNothing, typename MaybeClusterId = StaticNothing>
 class LayeredViewFactory {
 
 public:
     LayeredViewFactory() = default;
 
-    LayeredViewFactory(MaybePlan maybePlan, MaybeStorage maybeStorage)
-        : maybePlan(maybePlan), maybeStorage(maybeStorage) {}
+    LayeredViewFactory(MaybePlan maybePlan, MaybeStorage maybeStorage,
+                       MaybeClusterId maybeClusterId)
+        : maybePlan(maybePlan), maybeStorage(maybeStorage), maybeClusterId(maybeClusterId) {}
 
     template <std::size_t Stride>[[nodiscard]] auto withStride() const {
         return LayeredViewFactory<std::integral_constant<std::size_t, Stride>, MaybePlan,
-                                  MaybeStorage>(maybePlan, maybeStorage);
+                                  MaybeStorage, MaybeClusterId>(maybePlan, maybeStorage,
+                                                                maybeClusterId);
     }
 
     [[nodiscard]] auto withDynamicStride() const { return withStride<dynamic_extent>(); }
 
     template <typename LayeredPlanT> auto withPlan(LayeredPlanT& plan) const {
         const auto somePlan = StaticSome<LayeredPlanT>(plan);
-        return LayeredViewFactory<MaybeStride, StaticSome<LayeredPlanT>, MaybeStorage>(
-            somePlan, maybeStorage);
+        return LayeredViewFactory<MaybeStride, StaticSome<LayeredPlanT>, MaybeStorage,
+                                  MaybeClusterId>(somePlan, maybeStorage, maybeClusterId);
     }
 
     template <typename StorageT> constexpr auto withStorage(StorageT& storage) const {
         const auto someStorage = StaticSome<StorageT*>(&storage);
-        return LayeredViewFactory<MaybeStride, MaybePlan, StaticSome<StorageT*>>(maybePlan,
-                                                                                 someStorage);
+        return LayeredViewFactory<MaybeStride, MaybePlan, StaticSome<StorageT*>, MaybeClusterId>(
+            maybePlan, someStorage, maybeClusterId);
+    }
+    [[nodiscard]] auto withClusterId(std::size_t clusterId) const {
+        const auto someClusterId = StaticSome<std::size_t>(clusterId);
+        return LayeredViewFactory<MaybeStride, MaybePlan, MaybeStorage, StaticSome<std::size_t>>(
+            maybePlan, maybeStorage, someClusterId);
+    }
+
+    template <typename Layer, typename MaybePlan_ = MaybePlan>
+    [[nodiscard]] std::pair<std::size_t, std::size_t> getFromToForLayer() const {
+        if constexpr (std::is_base_of_v<CombinedLayeredPlanBase, typename MaybePlan_::type>) {
+            static_assert(!std::is_same_v<MaybeClusterId, StaticNothing>,
+                          "Cluster id has to be set when using CombinedLayer.");
+            const auto& layer = maybePlan.value.template getLayer<Layer>(maybeClusterId.value);
+            return {layer.offset, layer.offset + layer.numElements};
+        } else {
+            const auto& layer = maybePlan.value.template getLayer<Layer>();
+            return {layer.offset, layer.offset + layer.numElements};
+        }
     }
 
     template <
         typename Layer, typename MaybeStride_ = MaybeStride, typename MaybePlan_ = MaybePlan,
-        typename MaybeStorage_ = MaybeStorage,
+        typename MaybeStorage_ = MaybeStorage, typename MaybeClusterId_ = MaybeClusterId,
         typename std::enable_if<!std::is_same<MaybeStride_, StaticNothing>::value, int>::type = 0,
         typename std::enable_if<!std::is_same<MaybePlan_, StaticNothing>::value, int>::type = 0,
-        typename std::enable_if<!std::is_same<MaybeStorage_, StaticNothing>::value, int>::type = 0>
+        typename std::enable_if<!std::is_same<MaybeStorage_, StaticNothing>::value, int>::type = 0,
+        typename std::enable_if<std::is_same<MaybeClusterId_, StaticNothing>::value, int>::type = 0>
     [[nodiscard]] auto createStridedView() const {
         auto layout = maybePlan.value.getLayout();
-        const auto& layer = maybePlan.value.template getLayer<Layer>();
-        std::size_t from = layer.offset;
-        std::size_t to = from + layer.numElements;
+        const auto [from, to] = getFromToForLayer<Layer>();
+
         return StridedView<std::remove_pointer_t<typename MaybeStorage_::type>, MaybeStride::value>(
             layout, *(maybeStorage.value), from, to);
     }
@@ -144,9 +165,8 @@ public:
         typename std::enable_if<!std::is_same<MaybeStorage_, StaticNothing>::value, int>::type = 0>
     constexpr auto createDenseView() {
         auto layout = maybePlan.value.getLayout();
-        const auto& layer = maybePlan.value.template getLayer<Layer>();
-        std::size_t from = layer.offset;
-        std::size_t to = from + layer.numElements;
+        const auto [from, to] = getFromToForLayer<Layer>();
+
         return DenseView<std::remove_pointer_t<typename MaybeStorage_::type>>(
             layout, *(maybeStorage.value), from, to);
     }
@@ -154,10 +174,11 @@ public:
 private:
     MaybePlan maybePlan;
     MaybeStorage maybeStorage;
+    MaybeClusterId maybeClusterId;
 };
 
 constexpr auto createViewFactory() {
-    return LayeredViewFactory<StaticNothing, StaticNothing, StaticNothing>();
+    return LayeredViewFactory<StaticNothing, StaticNothing, StaticNothing, StaticNothing>();
 }
 
 } // namespace mneme

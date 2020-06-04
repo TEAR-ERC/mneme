@@ -180,4 +180,25 @@ TEST_CASE("Layered Plans") {
             CHECK(dofsC[j] == j / 10 + 10 * (j % 10));
         }
     }
+    SUBCASE("Combined plan") {
+        auto plans = std::vector{localPlan, localPlan};
+        auto combinedPlan = CombinedLayeredPlan<Interior, Copy, Ghost>(plans);
+        using local_storage_t = MultiStorage<DataLayout::SoA, material, bc>;
+        local_storage_t localC(localLayout.back());
+        auto combinedLayout = combinedPlan.getLayout();
+        auto materialViewFactory = createViewFactory().withPlan(combinedPlan).withStorage(localC);
+        auto localViewCopy = materialViewFactory.withClusterId(0).createDenseView<Copy>();
+        for (int i = 0; i < 2; ++i) {
+            std::cout << "Cluster = " << i << std::endl;
+            auto interior = combinedPlan.getLayer<Interior>(i);
+            std::cout << "Interior:\t" << interior.numElements << " " << interior.offset
+                      << std::endl;
+            auto copy = combinedPlan.getLayer<Copy>(i);
+            std::cout << "Copy:\t" << copy.numElements << " " << copy.offset
+                      << std::endl;
+            auto ghost = combinedPlan.getLayer<Ghost>(i);
+            std::cout << "Ghost:\t" << ghost.numElements << " " << ghost.offset
+                      << std::endl;}
+    }
+
 }

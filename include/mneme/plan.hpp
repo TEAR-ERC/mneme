@@ -3,13 +3,13 @@
 
 #include <cstddef>
 #include <memory>
+#include <numeric>
 #include <utility>
 #include <vector>
 
 #include "displacements.hpp"
 #include "span.hpp"
 #include "tagged_tuple.hpp"
-#include "view.hpp"
 
 namespace mneme {
 
@@ -36,7 +36,9 @@ public:
     std::size_t offset = 0;
 };
 
-template <typename... Layers> class LayeredPlan {
+class LayeredPlanBase {};
+
+template <typename... Layers> class LayeredPlan : public LayeredPlanBase {
     template <typename... OtherLayers> friend class LayeredPlan;
 
 public:
@@ -91,6 +93,8 @@ public:
     }
 
     template <typename T> T getLayer() const { return std::get<T>(layers); }
+    std::size_t getOffset() const { return curOffset; }
+    size_t size() const { return numElements; };
 
 private:
     std::tuple<Layers...> layers;
@@ -99,6 +103,55 @@ private:
     Plan plan;
     mutable std::optional<LayoutT> layout;
 };
+
+class CombinedLayeredPlanBase {};
+
+template <typename... Layers> class CombinedLayeredPlan : public CombinedLayeredPlanBase {
+public:
+    using PlanT = LayeredPlan<Layers...>;
+    using LayoutT = Displacements<size_t>;
+
+    explicit CombinedLayeredPlan(std::vector<PlanT> plans) : plans(plans), offsets(plans.size()) {
+        std::size_t offset = 0;
+        for (std::size_t i = 0; i < plans.size(); ++i) {
+            const auto& plan = plans[i];
+            offsets[i] = offset;
+            offset += plan.getOffset();
+        }
+    }
+
+    [[nodiscard]] LayoutT getLayout() const {
+        const std::size_t totalNumberOfDofs =
+            std::accumulate(plans.begin(), plans.end(), 0u,
+                            [](auto count, auto& vec) { return count + vec.size(); });
+
+        std::vector<size_t> combinedDofs(totalNumberOfDofs);
+        std::size_t idx = 0;
+        for (auto i = 0u; i < plans.size(); ++i) {
+            const auto& plan = plans[i];
+            const auto offset = offsets[i];
+            const auto& curLayout = plan.getLayout();
+            for (auto i = 0u; i < curLayout.size(); ++i) {
+                // TODO(Lukas) Use correct offset
+                combinedDofs[idx] = offset + curLayout.count(i);
+                ++idx;
+            }
+        }
+        return {combinedDofs};
+    }
+
+    template <typename T> T getLayer(std::size_t clusterId) const {
+        const auto& cluster = plans[clusterId];
+        auto layer = cluster.template getLayer<T>();
+        layer.offset += offsets[clusterId];
+        return layer;
+    }
+
+private:
+    std::vector<PlanT> plans;
+    std::vector<std::size_t> offsets;
+};
+
 
 } // namespace mneme
 
