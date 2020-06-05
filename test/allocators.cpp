@@ -36,6 +36,23 @@ struct dofs {
     using allocator = AlignedAllocator<type, alignment>;
 };
 
+struct dofs2 {
+    using type = double;
+    using allocator = AlignedAllocator<type, alignment * 2>;
+};
+
+struct dofs3 {
+    using type = double;
+    using allocator = std::allocator<type>;
+};
+
+TEST_CASE("Combining allocator types") {
+    CHECK(allSameAllocator<dofs, dofs2>());
+    CHECK(!allSameAllocator<dofs, dofs2, dofs3>());
+    constexpr auto maxAlignment = getMaxAlignment<dofs, dofs2>();
+    CHECK(std::max(dofs::allocator::alignment, dofs2::allocator::alignment) == maxAlignment);
+}
+
 TEST_CASE("Storage works with aligned allocator") {
     constexpr std::size_t numElements = 10;
     constexpr std::size_t numDofs = 7;

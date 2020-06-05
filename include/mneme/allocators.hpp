@@ -8,8 +8,10 @@
 
 namespace mneme {
 
-template <class T, std::size_t Alignment> struct AlignedAllocator {
+struct AlignedAllocatorBase {};
+template <class T, std::size_t Alignment> struct AlignedAllocator : public AlignedAllocatorBase {
     using value_type = T;
+    constexpr static std::size_t alignment = Alignment;
 
     AlignedAllocator() = default;
     template <class U, std::size_t OtherAlignment>
@@ -44,11 +46,50 @@ bool operator==(const AlignedAllocator<T, Alignment>&, const AlignedAllocator<U,
     return true;
 }
 template <class T, std::size_t Alignment, class U, std::size_t OtherAlignment>
-bool operator!=(const AlignedAllocator<T, Alignment>& a,
-                const AlignedAllocator<U, OtherAlignment>& b) {
+bool operator!=(const AlignedAllocator<T, Alignment>&, const AlignedAllocator<U, OtherAlignment>&) {
     return false;
 }
 
+template <typename... List> struct AllocatorInfo;
+
+template <typename Head, typename... Tail> struct AllocatorInfo<Head, Tail...> {
+    template <typename Allocator> static constexpr bool allSameAllocatorAs() {
+        using own_t = typename Head::allocator;
+        return std::is_base_of_v<Allocator, own_t> &&
+               AllocatorInfo<Tail...>::template allSameAllocatorAs<Allocator>();
+    }
+
+    static constexpr bool allSameAllocator() {
+        using own_t = typename Head::allocator;
+        if constexpr (std::is_base_of_v<AlignedAllocatorBase, own_t>) {
+            return allSameAllocatorAs<AlignedAllocatorBase>();
+        } else {
+            return allSameAllocatorAs<own_t>();
+        }
+    }
+
+    static constexpr std::size_t getMaxAlignment() {
+        using own_t = typename Head::allocator;
+        static_assert(std::is_base_of_v<AlignedAllocatorBase, own_t>,
+                      "Maximum alignment is only defined if all allocators are AlignedAllocator");
+        return std::max(AllocatorInfo<Tail...>::getMaxAlignment(), own_t::alignment);
+    }
+};
+
+template <> struct AllocatorInfo<> {
+    template <typename Allocator> static auto allSameAllocatorAs() { return true; }
+
+    static constexpr bool allSameAllocator() { return true; }
+    static constexpr std::size_t getMaxAlignment() { return 0; }
+};
+
+template <typename... Args> bool allSameAllocator() {
+    return AllocatorInfo<Args...>::allSameAllocator();
+}
+template <typename... Args> constexpr size_t getMaxAlignment() {
+    constexpr auto maxAlignment = AllocatorInfo<Args...>::getMaxAlignment();
+    return maxAlignment;
+}
 } // namespace mneme
 
 #endif // MNEME_ALLOCATORS_H
