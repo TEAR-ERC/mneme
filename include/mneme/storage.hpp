@@ -28,7 +28,7 @@ template <typename... Ids> struct DataLayoutAllocatePolicy<DataLayout::AoS, Ids.
     constexpr static void allocate(type& c, std::size_t size) {
         c = new tagged_tuple<Ids...>[size];
     }
-    constexpr static void deallocate(type& c) { delete[] c; }
+    constexpr static void deallocate(type& c, std::size_t) { delete[] c; }
 
     constexpr static type offset(type& c, std::size_t from) { return c + from; }
 
@@ -52,14 +52,27 @@ struct DataLayoutAccessPolicy<DataLayout::AoS, Extent, Ids...> {
     }
 };
 
-template <typename... Ids> struct DataLayoutAllocatePolicy<DataLayout::SoA, Ids...> {
+template <typename Id> typename Id::type* allocateHelper(std::size_t size) {
+    auto allocator = typename Id::allocator();
+    return std::allocator_traits<typename Id::allocator>::allocate(allocator, size);
+}
+
+template <typename Id> void deallocateHelper(typename Id::type* ptr, std::size_t size) {
+    auto allocator = typename Id::allocator();
+    std::allocator_traits<typename Id::allocator>::deallocate(allocator, ptr, size);
+}
+
+template <typename... Ids> class DataLayoutAllocatePolicy<DataLayout::SoA, Ids...> {
+public:
     using type = detail::tt_impl<std::add_pointer, Ids...>;
 
     constexpr static void allocate(type& c, std::size_t size) {
-        ((c.template get<Ids>() = new typename Ids::type[size]), ...);
+        ((c.template get<Ids>() = allocateHelper<Ids>(size)), ...);
     }
 
-    constexpr static void deallocate(type& c) { ((delete[] c.template get<Ids>()), ...); }
+    constexpr static void deallocate(type& c, std::size_t size) {
+        ((deallocateHelper<Ids>(c.template get<Ids>(), size)), ...);
+    }
 
     constexpr static type offset(type& c, std::size_t from) {
         return type{(c.template get<Ids>() + from)...};
@@ -107,7 +120,7 @@ public:
 
     MultiStorage(std::size_t size) : size_(size) { allocate_policy_t::allocate(values, size); }
 
-    ~MultiStorage() { allocate_policy_t::deallocate(values); }
+    ~MultiStorage() { allocate_policy_t::deallocate(values, size_); }
 
     value_type<1u> operator[](std::size_t pos) noexcept {
         return access_policy_t<1u>::get(values, pos, pos + 1u);

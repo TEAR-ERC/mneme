@@ -18,12 +18,15 @@ struct ElasticMaterial {
 
 struct dofs {
     using type = double;
+    using allocator = std::allocator<type>;
 };
 struct material {
     using type = ElasticMaterial;
+    using allocator = std::allocator<type>;
 };
 struct bc {
     using type = std::array<int, 4>;
+    using allocator = std::allocator<type>;
 };
 
 TEST_CASE("Data structure works") {

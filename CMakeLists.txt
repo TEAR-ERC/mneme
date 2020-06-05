@@ -22,3 +22,8 @@ add_executable(displacements-test test/displacements.cpp)
 target_compile_options(displacements-test PRIVATE -Wall -Wextra -pedantic)
 target_link_libraries(displacements-test mneme-test-runner)
 doctest_discover_tests(displacements-test)
+
+add_executable(allocators-test test/allocators.cpp)
+target_compile_options(allocators-test PRIVATE -Wall -Wextra -pedantic)
+target_link_libraries(allocators-test mneme-test-runner)
+doctest_discover_tests(allocators-test)

@@ -6,6 +6,8 @@
 #include <limits>
 #include <new>
 
+namespace mneme {
+
 template <class T, std::size_t Alignment> struct AlignedAllocator {
     using value_type = T;
 
@@ -34,7 +36,7 @@ template <class T, std::size_t Alignment> struct AlignedAllocator {
 
         return ptr;
     }
-    void deallocate(T* ptr, std::size_t n) noexcept { std::free(ptr); }
+    void deallocate(T* ptr, std::size_t) noexcept { std::free(ptr); }
 };
 
 template <class T, std::size_t Alignment, class U, std::size_t OtherAlignment>
@@ -46,5 +48,7 @@ bool operator!=(const AlignedAllocator<T, Alignment>& a,
                 const AlignedAllocator<U, OtherAlignment>& b) {
     return false;
 }
+
+} // namespace mneme
 
 #endif // MNEME_ALLOCATORS_H
