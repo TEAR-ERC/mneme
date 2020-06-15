@@ -141,14 +141,17 @@ public:
     using storage_t = MultiStorage<DataLayout::SoA, Id>;
     using storage_t::storage_t;
     using typename storage_t::offset_type;
+    template <std::size_t Extent>
+    using value_type = decltype(
+        std::declval<typename storage_t::template value_type<Extent>>().template get<Id>());
 
     auto& operator[](std::size_t pos) noexcept {
         return storage_t::operator[](pos).template get<Id>();
     }
 
     template <std::size_t Extent = dynamic_extent>
-    auto get(offset_type& offset, std::size_t from, std::size_t to) noexcept {
-        return storage_t::get(offset, from, to).template get<Id>();
+    value_type<Extent> get(offset_type& offset, std::size_t from, std::size_t to) noexcept {
+        return storage_t::template get<Extent>(offset, from, to).template get<Id>();
     }
 };
 

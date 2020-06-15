@@ -1,12 +1,13 @@
 #ifndef MNEME_VIEW_H_
 #define MNEME_VIEW_H_
 
+#include "iterator.hpp"
+#include "span.hpp"
+
 #include <cstddef>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
-
-#include "iterator.hpp"
 
 namespace mneme {
 
@@ -60,7 +61,7 @@ public:
         offset = container->offset(from * stride);
     }
 
-    auto operator[](std::size_t localId) noexcept {
+    auto operator[](std::size_t localId) noexcept -> typename Storage::template value_type<Stride> {
         assert(container != nullptr);
         std::size_t s;
         if constexpr (Stride == dynamic_extent) {
@@ -69,8 +70,7 @@ public:
             s = Stride;
         }
         std::size_t from = localId * s;
-        auto&& result = container->template get<Stride>(offset, from, from + s);
-        return std::forward<decltype(result)>(result);
+        return container->template get<Stride>(offset, from, from + s);
     }
 
     std::size_t size() const noexcept { return size_; }
@@ -110,8 +110,9 @@ public:
         }
     }
 
-    auto operator[](std::size_t localId) noexcept {
-        return container->get(offset, sl[localId], sl[localId + 1]);
+    auto operator[](std::size_t localId) noexcept ->
+        typename Storage::template value_type<dynamic_extent> {
+        return container->get<dynamic_extent>(offset, sl[localId], sl[localId + 1]);
     }
 
     std::size_t size() const noexcept { return size_; }

@@ -47,17 +47,36 @@ TEST_CASE("Data structure works") {
     }
     auto dofsLayout = dofsPlan.getLayout();
 
-    SUBCASE("MultiStorage works") {
-        using local_storage_t = MultiStorage<DataLayout::SoA, material, bc>;
-        local_storage_t localC(localLayout.back());
-        DenseView<local_storage_t> localView(localLayout, localC, NghostP1, N);
-        for (int i = 0; i < static_cast<int>(localView.size()); ++i) {
-            localView[i].get<material>() = ElasticMaterial{1.0 * i, 1.0 * i, 2.0 * i};
+    MultiStorage<DataLayout::AoS, material, bc> localAoS(localLayout.back());
+    MultiStorage<DataLayout::SoA, material, bc> localSoA(localLayout.back());
+
+    auto testMaterial = [](auto&& X) {
+        for (int i = 0; i < static_cast<int>(X.size()); ++i) {
+            X[i].template get<material>() = ElasticMaterial{1.0 * i, 1.0 * i, 2.0 * i};
         }
         int i = 0;
-        for (auto&& v : localView) {
-            REQUIRE(v.get<material>().lambda == 2.0 * i++);
+        for (auto&& x : X) {
+            REQUIRE(x.template get<material>().lambda == 2.0 * i++);
         }
+    };
+
+    SUBCASE("MultiStorage AoS works") { testMaterial(localAoS); }
+
+    SUBCASE("MultiStorage SoA works") { testMaterial(localSoA); }
+
+    SUBCASE("DenseView AoS works") {
+        DenseView<decltype(localAoS)> localView(localLayout, localAoS, NghostP1, N);
+        testMaterial(localView);
+    }
+
+    SUBCASE("DenseView SoA works") {
+        DenseView<decltype(localSoA)> localView(localLayout, localSoA, NghostP1, N);
+        testMaterial(localView);
+    }
+
+    SUBCASE("DenseView AoS works") {
+        DenseView<decltype(localAoS)> localView(localLayout, localAoS, NghostP1, N);
+        testMaterial(localView);
     }
 
     SUBCASE("SingleStorage works") {
