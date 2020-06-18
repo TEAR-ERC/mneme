@@ -20,6 +20,7 @@ public:
     T& operator[](std::size_t idx) { return base[idx]; }
     T& operator[](std::size_t idx) const { return base[idx]; }
     T* data() { return base; }
+    T* data() const { return base; }
 
     std::size_t size() const { return Extent; }
 
@@ -43,6 +44,7 @@ public:
     T& operator[](std::size_t idx) { return base[idx]; }
     T& operator[](std::size_t idx) const { return base[idx]; }
     T* data() { return base; }
+    T* data() const { return base; }
 
     std::size_t size() const { return extent; }
 
