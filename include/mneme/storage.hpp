@@ -142,8 +142,7 @@ public:
     using storage_t::storage_t;
     using typename storage_t::offset_type;
     template <std::size_t Extent>
-    using value_type = decltype(
-        std::declval<typename storage_t::template value_type<Extent>>().template get<Id>());
+    using value_type = typename storage_t::template value_type<Extent>::template element_t<Id>;
 
     auto& operator[](std::size_t pos) noexcept {
         return storage_t::operator[](pos).template get<Id>();
