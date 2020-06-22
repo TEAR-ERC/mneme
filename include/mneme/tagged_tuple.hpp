@@ -25,6 +25,11 @@ struct tt_impl : public std::tuple<typename type_transform<typename Ids::type>::
     template <typename Id> auto&& get() const noexcept {
         return std::get<detail::index_v<Id, Ids...>>(*this);
     }
+
+    template <typename Id>
+    using element_t = typename std::tuple_element_t<
+        detail::index_v<Id, Ids...>,
+        std::tuple<typename type_transform<typename Ids::type>::type...>>;
 };
 } // namespace detail
 

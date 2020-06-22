@@ -31,6 +31,8 @@ template <typename... Ids> struct DataLayoutAllocatePolicy<DataLayout::AoS, Ids.
     constexpr static void deallocate(type& c) { delete[] c; }
 
     constexpr static type offset(type& c, std::size_t from) { return c + from; }
+
+    constexpr static type null() { return nullptr; }
 };
 
 template <typename... Ids> struct DataLayoutAccessPolicy<DataLayout::AoS, 1u, Ids...> {
@@ -50,8 +52,7 @@ struct DataLayoutAccessPolicy<DataLayout::AoS, Extent, Ids...> {
     }
 };
 
-template <typename... Ids> class DataLayoutAllocatePolicy<DataLayout::SoA, Ids...> {
-public:
+template <typename... Ids> struct DataLayoutAllocatePolicy<DataLayout::SoA, Ids...> {
     using type = detail::tt_impl<std::add_pointer, Ids...>;
 
     constexpr static void allocate(type& c, std::size_t size) {
@@ -62,6 +63,10 @@ public:
 
     constexpr static type offset(type& c, std::size_t from) {
         return type{(c.template get<Ids>() + from)...};
+    }
+
+    constexpr static type null() {
+        return type{static_cast<std::add_pointer_t<typename Ids::type>>(nullptr)...};
     }
 };
 
@@ -98,6 +103,8 @@ public:
     using access_policy_t = detail::DataLayoutAccessPolicy<TDataLayout, Extent, Ids...>;
     template <std::size_t Extent> using value_type = typename access_policy_t<Extent>::value_type;
 
+    MultiStorage() {}
+
     MultiStorage(std::size_t size) : size_(size) { allocate_policy_t::allocate(values, size); }
 
     ~MultiStorage() { allocate_policy_t::deallocate(values); }
@@ -111,6 +118,12 @@ public:
         return access_policy_t<Extent>::get(offset, from, to);
     }
 
+    void resize(std::size_t size) {
+        size_ = size;
+        allocate_policy_t::deallocate(values);
+        allocate_policy_t::allocate(values, size);
+    }
+
     offset_type offset(std::size_t from) { return allocate_policy_t::offset(values, from); }
 
     inline std::size_t size() const noexcept { return size_; }
@@ -119,8 +132,8 @@ public:
     iterator end() { return iterator(this, size()); }
 
 private:
-    std::size_t size_;
-    type values;
+    std::size_t size_ = 0u;
+    type values = allocate_policy_t::null();
 };
 
 template <typename Id> class SingleStorage : public MultiStorage<DataLayout::SoA, Id> {
@@ -128,14 +141,16 @@ public:
     using storage_t = MultiStorage<DataLayout::SoA, Id>;
     using storage_t::storage_t;
     using typename storage_t::offset_type;
+    template <std::size_t Extent>
+    using value_type = typename storage_t::template value_type<Extent>::template element_t<Id>;
 
-    auto operator[](std::size_t pos) noexcept {
+    auto& operator[](std::size_t pos) noexcept {
         return storage_t::operator[](pos).template get<Id>();
     }
 
     template <std::size_t Extent = dynamic_extent>
-    auto get(offset_type& offset, std::size_t from, std::size_t to) noexcept {
-        return storage_t::get(offset, from, to).template get<Id>();
+    value_type<Extent> get(offset_type& offset, std::size_t from, std::size_t to) noexcept {
+        return storage_t::template get<Extent>(offset, from, to).template get<Id>();
     }
 };
 
