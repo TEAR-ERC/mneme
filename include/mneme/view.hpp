@@ -16,19 +16,21 @@ public:
     using offset_type = typename Storage::offset_type;
     using iterator = Iterator<StridedView<Storage, Stride>>;
 
-    StridedView() : size_(0), container(nullptr) {}
+    StridedView() : size_(0), container_(nullptr) {}
 
     template <class Layout>
-    StridedView(Layout const& layout, Storage& container, std::size_t from, std::size_t to) {
+    StridedView(Layout const& layout, Storage* container, std::size_t from, std::size_t to) {
         setStorage(layout, container, from, to);
     }
 
     template <class Layout>
-    void setStorage(Layout const& layout, Storage& cntnr, std::size_t from, std::size_t to) {
+    void setStorage(Layout const& layout, Storage* container, std::size_t from, std::size_t to) {
         size_ = to - from;
-        container = &cntnr;
-        offset = container->offset(layout[from]);
-        //: size_(to - from), container(container), offset(container.offset(layout[from])) {
+        container_ = container;
+        if (container_ == nullptr) {
+            return;
+        }
+        offset = container_->offset(layout[from]);
         if (!(to > from)) {
             throw std::runtime_error("'To' must be larger than 'from'.");
         }
@@ -48,21 +50,24 @@ public:
         }
     }
 
-    void setStorage(Storage& cntnr, std::size_t from, std::size_t to, std::size_t strd = 1u) {
+    void setStorage(Storage* container, std::size_t from, std::size_t to, std::size_t strd = 1u) {
+        size_ = to - from;
+        container_ = container;
+        if (container == nullptr) {
+            return;
+        }
         if constexpr (Stride == dynamic_extent) {
             stride = strd;
         } else {
             stride = Stride;
         }
-        assert(cntnr.size() % stride == 0);
+        assert(container_->size() % stride == 0);
 
-        size_ = to - from;
-        container = &cntnr;
-        offset = container->offset(from * stride);
+        offset = container_->offset(from * stride);
     }
 
     auto operator[](std::size_t localId) noexcept -> typename Storage::template value_type<Stride> {
-        assert(container != nullptr);
+        assert(container_ != nullptr);
         std::size_t s;
         if constexpr (Stride == dynamic_extent) {
             s = stride;
@@ -70,7 +75,7 @@ public:
             s = Stride;
         }
         std::size_t from = localId * s;
-        return container->template get<Stride>(offset, from, from + s);
+        return container_->template get<Stride>(offset, from, from + s);
     }
 
     std::size_t size() const noexcept { return size_; }
@@ -80,7 +85,7 @@ public:
 
 private:
     std::size_t size_ = 0, stride;
-    Storage* container = nullptr;
+    Storage* container_ = nullptr;
     offset_type offset;
 };
 
@@ -91,20 +96,23 @@ public:
     using offset_type = typename Storage::offset_type;
     using iterator = Iterator<GeneralView<Storage>>;
 
-    GeneralView() : size_(0), container(nullptr) {}
+    GeneralView() : size_(0), container_(nullptr) {}
 
     template <class Layout>
-    GeneralView(Layout const& layout, Storage& container, std::size_t from, std::size_t to) {
+    GeneralView(Layout const& layout, Storage* container, std::size_t from, std::size_t to) {
         setStorage(layout, container, from, to);
     }
 
     template <class Layout>
-    void setStorage(Layout const& layout, Storage& cntnr, std::size_t from, std::size_t to) {
+    void setStorage(Layout const& layout, Storage* container, std::size_t from, std::size_t to) {
         size_ = to - from;
         sl.clear();
         sl.insert(sl.begin(), layout.begin() + from, layout.begin() + to);
-        container = &cntnr;
-        offset = container->offset(layout[from]);
+        container_ = container;
+        if (container_ == nullptr) {
+            return;
+        }
+        offset = container_->offset(layout[from]);
         if (!(to > from)) {
             throw std::runtime_error("'To' must be larger than 'from'.");
         }
@@ -112,7 +120,8 @@ public:
 
     auto operator[](std::size_t localId) noexcept ->
         typename Storage::template value_type<dynamic_extent> {
-        return container->get<dynamic_extent>(offset, sl[localId], sl[localId + 1]);
+        assert(container_ != nullptr);
+        return container_->get<dynamic_extent>(offset, sl[localId], sl[localId + 1]);
     }
 
     std::size_t size() const noexcept { return size_; }
@@ -123,7 +132,7 @@ public:
 private:
     std::size_t size_ = 0;
     std::vector<std::size_t> sl;
-    Storage* container = nullptr;
+    Storage* container_ = nullptr;
     offset_type offset;
 };
 

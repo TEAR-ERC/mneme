@@ -65,24 +65,24 @@ TEST_CASE("Data structure works") {
     SUBCASE("MultiStorage SoA works") { testMaterial(localSoA); }
 
     SUBCASE("DenseView AoS works") {
-        DenseView<decltype(localAoS)> localView(localLayout, localAoS, NghostP1, N);
+        DenseView<decltype(localAoS)> localView(localLayout, &localAoS, NghostP1, N);
         testMaterial(localView);
     }
 
     SUBCASE("DenseView SoA works") {
-        DenseView<decltype(localSoA)> localView(localLayout, localSoA, NghostP1, N);
+        DenseView<decltype(localSoA)> localView(localLayout, &localSoA, NghostP1, N);
         testMaterial(localView);
     }
 
     SUBCASE("DenseView AoS works") {
-        DenseView<decltype(localAoS)> localView(localLayout, localAoS, NghostP1, N);
+        DenseView<decltype(localAoS)> localView(localLayout, &localAoS, NghostP1, N);
         testMaterial(localView);
     }
 
     SUBCASE("SingleStorage works") {
         using dofs_storage_t = SingleStorage<dofs>;
         dofs_storage_t dofsC(dofsLayout.back());
-        StridedView<dofs_storage_t, 4U> dofsV(dofsLayout, dofsC, 0, NghostP1 + NinteriorP1);
+        StridedView<dofs_storage_t, 4U> dofsV(dofsLayout, &dofsC, 0, NghostP1 + NinteriorP1);
         int k = 0;
         int l = 0;
         for (auto&& v : dofsV) {
