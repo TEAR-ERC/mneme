@@ -1,11 +1,12 @@
-#include <array>
-#include <iostream>
-
 #include "mneme/plan.hpp"
 #include "mneme/storage.hpp"
 #include "mneme/view.hpp"
 
 #include "doctest.h"
+
+#include <array>
+#include <iostream>
+#include <memory>
 
 using namespace mneme;
 
@@ -47,8 +48,10 @@ TEST_CASE("Data structure works") {
     }
     auto dofsLayout = dofsPlan.getLayout();
 
-    MultiStorage<DataLayout::AoS, material, bc> localAoS(localLayout.back());
-    MultiStorage<DataLayout::SoA, material, bc> localSoA(localLayout.back());
+    using aos_t = MultiStorage<DataLayout::AoS, material, bc>;
+    using soa_t = MultiStorage<DataLayout::SoA, material, bc>;
+    auto localAoS = std::make_shared<aos_t>(localLayout.back());
+    auto localSoA = std::make_shared<soa_t>(localLayout.back());
 
     auto testMaterial = [](auto&& X) {
         for (int i = 0; i < static_cast<int>(X.size()); ++i) {
@@ -60,29 +63,29 @@ TEST_CASE("Data structure works") {
         }
     };
 
-    SUBCASE("MultiStorage AoS works") { testMaterial(localAoS); }
+    SUBCASE("MultiStorage AoS works") { testMaterial(*localAoS); }
 
-    SUBCASE("MultiStorage SoA works") { testMaterial(localSoA); }
+    SUBCASE("MultiStorage SoA works") { testMaterial(*localSoA); }
 
     SUBCASE("DenseView AoS works") {
-        DenseView<decltype(localAoS)> localView(localLayout, &localAoS, NghostP1, N);
+        DenseView<aos_t> localView(localLayout, localAoS, NghostP1, N);
         testMaterial(localView);
     }
 
     SUBCASE("DenseView SoA works") {
-        DenseView<decltype(localSoA)> localView(localLayout, &localSoA, NghostP1, N);
+        DenseView<soa_t> localView(localLayout, localSoA, NghostP1, N);
         testMaterial(localView);
     }
 
     SUBCASE("DenseView AoS works") {
-        DenseView<decltype(localAoS)> localView(localLayout, &localAoS, NghostP1, N);
+        DenseView<aos_t> localView(localLayout, localAoS, NghostP1, N);
         testMaterial(localView);
     }
 
     SUBCASE("SingleStorage works") {
         using dofs_storage_t = SingleStorage<dofs>;
-        dofs_storage_t dofsC(dofsLayout.back());
-        StridedView<dofs_storage_t, 4U> dofsV(dofsLayout, &dofsC, 0, NghostP1 + NinteriorP1);
+        auto dofsC = std::make_shared<dofs_storage_t>(dofsLayout.back());
+        StridedView<dofs_storage_t, 4U> dofsV(dofsLayout, dofsC, 0, NghostP1 + NinteriorP1);
         int k = 0;
         int l = 0;
         for (auto&& v : dofsV) {
@@ -93,7 +96,7 @@ TEST_CASE("Data structure works") {
             ++k;
         }
         for (int j = 0; j < NghostP1 + NinteriorP1; ++j) {
-            REQUIRE(dofsC[j] == j / 4 + 4 * (j % 4));
+            REQUIRE((*dofsC)[j] == j / 4 + 4 * (j % 4));
         }
     }
 }

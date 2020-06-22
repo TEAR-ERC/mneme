@@ -5,8 +5,10 @@
 #include "span.hpp"
 
 #include <cstddef>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 namespace mneme {
@@ -19,15 +21,17 @@ public:
     StridedView() : size_(0), container_(nullptr) {}
 
     template <class Layout>
-    StridedView(Layout const& layout, Storage* container, std::size_t from, std::size_t to) {
-        setStorage(layout, container, from, to);
+    StridedView(Layout const& layout, std::shared_ptr<Storage> container, std::size_t from,
+                std::size_t to) {
+        setStorage(layout, std::move(container), from, to);
     }
 
     template <class Layout>
-    void setStorage(Layout const& layout, Storage* container, std::size_t from, std::size_t to) {
+    void setStorage(Layout const& layout, std::shared_ptr<Storage> container, std::size_t from,
+                    std::size_t to) {
         size_ = to - from;
-        container_ = container;
-        if (container_ == nullptr) {
+        container_ = std::move(container);
+        if (!container_) {
             return;
         }
         offset = container_->offset(layout[from]);
@@ -50,10 +54,11 @@ public:
         }
     }
 
-    void setStorage(Storage* container, std::size_t from, std::size_t to, std::size_t strd = 1u) {
+    void setStorage(std::shared_ptr<Storage> container, std::size_t from, std::size_t to,
+                    std::size_t strd = 1u) {
         size_ = to - from;
-        container_ = container;
-        if (container == nullptr) {
+        container_ = std::move(container);
+        if (!container_) {
             return;
         }
         if constexpr (Stride == dynamic_extent) {
@@ -85,7 +90,7 @@ public:
 
 private:
     std::size_t size_ = 0, stride;
-    Storage* container_ = nullptr;
+    std::shared_ptr<Storage> container_;
     offset_type offset;
 };
 
@@ -99,16 +104,18 @@ public:
     GeneralView() : size_(0), container_(nullptr) {}
 
     template <class Layout>
-    GeneralView(Layout const& layout, Storage* container, std::size_t from, std::size_t to) {
-        setStorage(layout, container, from, to);
+    GeneralView(Layout const& layout, std::shared_ptr<Storage> container, std::size_t from,
+                std::size_t to) {
+        setStorage(layout, std::move(container), from, to);
     }
 
     template <class Layout>
-    void setStorage(Layout const& layout, Storage* container, std::size_t from, std::size_t to) {
+    void setStorage(Layout const& layout, std::shared_ptr<Storage> container, std::size_t from,
+                    std::size_t to) {
         size_ = to - from;
         sl.clear();
         sl.insert(sl.begin(), layout.begin() + from, layout.begin() + to);
-        container_ = container;
+        container_ = std::move(container);
         if (container_ == nullptr) {
             return;
         }
@@ -132,7 +139,7 @@ public:
 private:
     std::size_t size_ = 0;
     std::vector<std::size_t> sl;
-    Storage* container_ = nullptr;
+    std::shared_ptr<Storage> container_;
     offset_type offset;
 };
 
