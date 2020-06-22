@@ -5,6 +5,7 @@
 #include <tuple>
 #include <type_traits>
 
+#include "allocators.hpp"
 #include "iterator.hpp"
 #include "span.hpp"
 #include "tagged_tuple.hpp"
@@ -20,13 +21,24 @@ namespace detail {
 template <DataLayout TDataLayout, typename... Ids> struct DataLayoutAllocatePolicy;
 
 template <DataLayout TDataLayout, std::size_t Extent, typename... Ids>
-struct DataLayoutAccessPolicy;
+struct DataLayoutAccessPolicy {
+    static constexpr auto layout = TDataLayout;
+};
 
 template <typename... Ids> struct DataLayoutAllocatePolicy<DataLayout::AoS, Ids...> {
     using type = tagged_tuple<Ids...>*;
 
     constexpr static void allocate(type& c, std::size_t size) {
-        c = new tagged_tuple<Ids...>[size];
+        static_assert(allSameAllocator<Ids...>(),
+                      "AoS layout only works if all Ids share the same allocator.");
+        if constexpr (AllocatorInfo<Ids...>::template allSameAllocatorAs<AlignedAllocatorBase>()) {
+            constexpr auto alignment = getMaxAlignment<Ids...>();
+            using allocator_t = AlignedAllocator<tagged_tuple<Ids...>, alignment>;
+            auto allocator = allocator_t();
+            c = std::allocator_traits<allocator_t>::allocate(allocator, size);
+        } else {
+            c = new tagged_tuple<Ids...>[size];
+        }
     }
     constexpr static void deallocate(type& c, std::size_t) { delete[] c; }
 
@@ -47,7 +59,7 @@ struct DataLayoutAccessPolicy<DataLayout::AoS, Extent, Ids...> {
     using type = typename DataLayoutAllocatePolicy<DataLayout::AoS, Ids...>::type;
     using value_type = const span<tagged_tuple<Ids...>, Extent>;
 
-    constexpr static value_type get(type& c, std::size_t from, std::size_t to) {
+    constexpr static auto get(type& c, std::size_t from, std::size_t to) {
         return value_type(&c[from], to - from);
     }
 };

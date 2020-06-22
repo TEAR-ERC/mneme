@@ -16,17 +16,17 @@ struct ElasticMaterial {
     double lambda;
 };
 
-struct dofs {
+struct dofsAligned {
     using type = double;
-    using allocator = std::allocator<type>;
+    using allocator = StandardAllocator<type>;
 };
 struct material {
     using type = ElasticMaterial;
-    using allocator = std::allocator<type>;
+    using allocator = StandardAllocator<type>;
 };
 struct bc {
     using type = std::array<int, 4>;
-    using allocator = std::allocator<type>;
+    using allocator = StandardAllocator<type>;
 };
 
 TEST_CASE("Data structure works") {
@@ -55,7 +55,6 @@ TEST_CASE("Data structure works") {
     using soa_t = MultiStorage<DataLayout::SoA, material, bc>;
     auto localAoS = std::make_shared<aos_t>(localLayout.back());
     auto localSoA = std::make_shared<soa_t>(localLayout.back());
-
     auto testMaterial = [](auto&& X) {
         for (int i = 0; i < static_cast<int>(X.size()); ++i) {
             X[i].template get<material>() = ElasticMaterial{1.0 * i, 1.0 * i, 2.0 * i};
@@ -86,8 +85,9 @@ TEST_CASE("Data structure works") {
     }
 
     SUBCASE("SingleStorage works") {
-        using dofs_storage_t = SingleStorage<dofs>;
+        using dofs_storage_t = SingleStorage<dofsAligned>;
         auto dofsC = std::make_shared<dofs_storage_t>(dofsLayout.back());
+
         StridedView<dofs_storage_t, 4U> dofsV(dofsLayout, dofsC, 0, NghostP1 + NinteriorP1);
         int k = 0;
         int l = 0;

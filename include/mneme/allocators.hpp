@@ -8,6 +8,10 @@
 
 namespace mneme {
 
+struct StandardAllocatorBase {};
+template <typename T>
+struct StandardAllocator : public StandardAllocatorBase, public std::allocator<T> {};
+
 struct AlignedAllocatorBase {};
 template <class T, std::size_t Alignment> struct AlignedAllocator : public AlignedAllocatorBase {
     using value_type = T;
@@ -22,14 +26,13 @@ template <class T, std::size_t Alignment> struct AlignedAllocator : public Align
     [[nodiscard]] T* allocate(std::size_t n) {
         if (n > std::numeric_limits<std::size_t>::max() / sizeof(T))
             throw std::bad_alloc();
-        T* ptr;
         // Note: The alignment has to satisfy the following requirements
         // See also: https://www.man7.org/linux/man-pages/man3/posix_memalign.3.html
         constexpr bool isPowerOfTwo = (Alignment > 0 && ((Alignment & (Alignment - 1)) == 0));
         static_assert(isPowerOfTwo, "Alignment has to be a power of two");
         constexpr bool isFactorOfPtrSize = Alignment % sizeof(void*) == 0;
         static_assert(isFactorOfPtrSize, "Alignment has to be a constant of void ptr size");
-        ptr = reinterpret_cast<T*>(std::aligned_alloc(Alignment, n * sizeof(T)));
+        const auto ptr = reinterpret_cast<T*>(std::aligned_alloc(Alignment, n * sizeof(T)));
         auto isError = ptr == nullptr;
 
         if (isError) {
@@ -53,6 +56,7 @@ bool operator!=(const AlignedAllocator<T, Alignment>&, const AlignedAllocator<U,
 template <typename... List> struct AllocatorInfo;
 
 template <typename Head, typename... Tail> struct AllocatorInfo<Head, Tail...> {
+
     template <typename Allocator> static constexpr bool allSameAllocatorAs() {
         using own_t = typename Head::allocator;
         return std::is_base_of_v<Allocator, own_t> &&
@@ -63,7 +67,9 @@ template <typename Head, typename... Tail> struct AllocatorInfo<Head, Tail...> {
         using own_t = typename Head::allocator;
         if constexpr (std::is_base_of_v<AlignedAllocatorBase, own_t>) {
             return allSameAllocatorAs<AlignedAllocatorBase>();
-        } else {
+        } else if (std::is_base_of_v<StandardAllocatorBase, own_t>) {
+            return allSameAllocatorAs<StandardAllocatorBase>();
+        } {
             return allSameAllocatorAs<own_t>();
         }
     }
@@ -77,13 +83,13 @@ template <typename Head, typename... Tail> struct AllocatorInfo<Head, Tail...> {
 };
 
 template <> struct AllocatorInfo<> {
-    template <typename Allocator> static auto allSameAllocatorAs() { return true; }
+    template <typename Allocator> static constexpr auto allSameAllocatorAs() { return true; }
 
     static constexpr bool allSameAllocator() { return true; }
     static constexpr std::size_t getMaxAlignment() { return 0; }
 };
 
-template <typename... Args> bool allSameAllocator() {
+template <typename... Args> constexpr bool allSameAllocator() {
     return AllocatorInfo<Args...>::allSameAllocator();
 }
 template <typename... Args> constexpr size_t getMaxAlignment() {
