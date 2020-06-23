@@ -35,12 +35,23 @@ template <typename... Ids> struct DataLayoutAllocatePolicy<DataLayout::AoS, Ids.
             constexpr auto alignment = getMaxAlignment<Ids...>();
             using allocator_t = AlignedAllocator<tagged_tuple<Ids...>, alignment>;
             auto allocator = allocator_t();
+
             c = std::allocator_traits<allocator_t>::allocate(allocator, size);
         } else {
-            c = new tagged_tuple<Ids...>[size];
+            auto allocator =
+                AllocatorGetter<tagged_tuple<Ids...>,
+                                StandardAllocator<tagged_tuple<Ids...>>>::makeAllocator();
+            c = std::allocator_traits<decltype(allocator)>::allocate(allocator, size);
         }
     }
-    constexpr static void deallocate(type& c, std::size_t) { delete[] c; }
+    constexpr static void deallocate(type& c, std::size_t size) {
+        auto allocator = AllocatorGetter<tagged_tuple<Ids...>,
+                                         StandardAllocator<tagged_tuple<Ids...>>>::makeAllocator();
+        for (std::size_t i = 0; i < size; ++i) {
+            std::allocator_traits<decltype(allocator)>::destroy(allocator, &c[i]);
+        }
+        std::allocator_traits<decltype(allocator)>::deallocate(allocator, c, size);
+    }
 
     constexpr static type offset(type& c, std::size_t from) { return c + from; }
 
@@ -65,12 +76,15 @@ struct DataLayoutAccessPolicy<DataLayout::AoS, Extent, Ids...> {
 };
 
 template <typename Id> typename Id::type* allocateHelper(std::size_t size) {
-    auto allocator = typename Id::allocator();
+    auto allocator = AllocatorGetter<Id>::makeAllocator();
     return std::allocator_traits<typename Id::allocator>::allocate(allocator, size);
 }
 
 template <typename Id> void deallocateHelper(typename Id::type* ptr, std::size_t size) {
-    auto allocator = typename Id::allocator();
+    auto allocator = AllocatorGetter<Id>::makeAllocator();
+    for (std::size_t i = 0; i < size; ++i) {
+        std::allocator_traits<typename Id::allocator>::destroy(allocator, &ptr[i]);
+    }
     std::allocator_traits<typename Id::allocator>::deallocate(allocator, ptr, size);
 }
 

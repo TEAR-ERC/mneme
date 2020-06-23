@@ -44,7 +44,6 @@ struct dofsAlignedLarge {
 
 struct dofsUnaligned {
     using type = double;
-    using allocator = std::allocator<type>;
 };
 
 TEST_CASE("Combining allocator types") {
@@ -97,4 +96,23 @@ TEST_CASE("Alignment works MultiStorage") {
         // Only the last type parameter is aligned but with the larger of both alignments.
         checkPointerAlignment(&localViewAoS[0].get<dofsAligned>(), 2 * alignment);
     }
+}
+
+struct A {
+    using type = double;
+    using allocator = AlignedAllocator<type, alignment>;
+};
+
+struct B {
+    using type = int;
+};
+
+TEST_CASE("AllocatorGetter constructs correct default values") {
+    auto allocA = AllocatorGetter<A, StandardAllocator<A::type>>::makeAllocator();
+    CHECK(std::is_base_of_v<AlignedAllocatorBase, decltype(allocA)>);
+    auto allocBDefaultNonAligned = AllocatorGetter<B, StandardAllocator<B::type>>::makeAllocator();
+    CHECK(std::is_base_of_v<StandardAllocatorBase, decltype(allocBDefaultNonAligned)>);
+    auto allocBDefaultAligned =
+        AllocatorGetter<B, AlignedAllocator<B::type, alignment>>::makeAllocator();
+    CHECK(std::is_base_of_v<AlignedAllocatorBase, decltype(allocBDefaultAligned)>);
 }

@@ -5,7 +5,6 @@
 #include "doctest.h"
 
 #include <array>
-#include <iostream>
 #include <memory>
 
 using namespace mneme;

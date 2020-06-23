@@ -53,29 +53,53 @@ bool operator!=(const AlignedAllocator<T, Alignment>&, const AlignedAllocator<U,
     return false;
 }
 
+namespace detail {
+template <typename, typename = void> inline constexpr bool hasAllocatorDefined = false;
+
+template <typename T>
+inline constexpr bool hasAllocatorDefined<T, std::void_t<decltype(sizeof(typename T::allocator))>> =
+    true;
+} // namespace detail
+
+template <typename T, typename Default = StandardAllocator<typename T::type>>
+struct AllocatorGetter {
+    constexpr static auto makeAllocator() {
+        if constexpr (detail::hasAllocatorDefined<T>) {
+            return typename T::allocator();
+        } else {
+            return Default();
+        }
+    }
+    using type = decltype(makeAllocator());
+};
+
 template <typename... List> struct AllocatorInfo;
 
 template <typename Head, typename... Tail> struct AllocatorInfo<Head, Tail...> {
 
     template <typename Allocator> static constexpr bool allSameAllocatorAs() {
-        using own_t = typename Head::allocator;
+        using own_t = typename AllocatorGetter<Head>::type;
         return std::is_base_of_v<Allocator, own_t> &&
                AllocatorInfo<Tail...>::template allSameAllocatorAs<Allocator>();
     }
 
     static constexpr bool allSameAllocator() {
-        using own_t = typename Head::allocator;
+        using own_t = typename AllocatorGetter<Head>::type;
+        static_assert(std::is_base_of_v<AlignedAllocatorBase, own_t> ||
+                          std::is_base_of_v<StandardAllocatorBase, own_t>,
+                      "AllocatorInfo::allSameAllocator is only defined for Aligned and Standard "
+                      "allocator currently");
         if constexpr (std::is_base_of_v<AlignedAllocatorBase, own_t>) {
             return allSameAllocatorAs<AlignedAllocatorBase>();
-        } else if (std::is_base_of_v<StandardAllocatorBase, own_t>) {
+        } else if constexpr (std::is_base_of_v<StandardAllocatorBase, own_t>) {
             return allSameAllocatorAs<StandardAllocatorBase>();
-        } {
+        } else {
             return allSameAllocatorAs<own_t>();
         }
     }
 
     static constexpr std::size_t getMaxAlignment() {
-        using own_t = typename Head::allocator;
+        using own_t = typename AllocatorGetter<Head>::type;
         static_assert(std::is_base_of_v<AlignedAllocatorBase, own_t>,
                       "Maximum alignment is only defined if all allocators are AlignedAllocator");
         return std::max(AllocatorInfo<Tail...>::getMaxAlignment(), own_t::alignment);
@@ -96,6 +120,7 @@ template <typename... Args> constexpr size_t getMaxAlignment() {
     constexpr auto maxAlignment = AllocatorInfo<Args...>::getMaxAlignment();
     return maxAlignment;
 }
+
 } // namespace mneme
 
 #endif // MNEME_ALLOCATORS_H
