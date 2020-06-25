@@ -147,6 +147,11 @@ public:
 
     ~MultiStorage() { allocate_policy_t::deallocate(values, size_); }
 
+    MultiStorage(MultiStorage&& other) = default;
+    MultiStorage& operator=(MultiStorage&& other) = default;
+    MultiStorage(MultiStorage const& other) = delete;
+    MultiStorage& operator=(MultiStorage const& other) = delete;
+
     value_type<1u> operator[](std::size_t pos) noexcept {
         return access_policy_t<1u>::get(values, pos, pos + 1u);
     }
