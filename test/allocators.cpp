@@ -116,3 +116,12 @@ TEST_CASE("AllocatorGetter constructs correct default values") {
         AllocatorGetter<B, AlignedAllocator<B::type, alignment>>::makeAllocator();
     CHECK(std::is_base_of_v<AlignedAllocatorBase, decltype(allocBDefaultAligned)>);
 }
+
+TEST_CASE("Default allocator compiles") {
+    struct IdWithoutAllocator {
+        using type = int;
+    };
+    auto testAoS = MultiStorage<DataLayout::AoS, IdWithoutAllocator>(5);
+    auto testSoA = MultiStorage<DataLayout::SoA, IdWithoutAllocator>(5);
+    auto testSingle = SingleStorage<IdWithoutAllocator>(5);
+}

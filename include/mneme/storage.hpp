@@ -77,19 +77,18 @@ struct DataLayoutAccessPolicy<DataLayout::AoS, Extent, Ids...> {
 
 template <typename Id> typename Id::type* allocateHelper(std::size_t size) {
     auto allocator = AllocatorGetter<Id>::makeAllocator();
-    return std::allocator_traits<typename Id::allocator>::allocate(allocator, size);
+    return std::allocator_traits<decltype(allocator)>::allocate(allocator, size);
 }
 
 template <typename Id> void deallocateHelper(typename Id::type* ptr, std::size_t size) {
     auto allocator = AllocatorGetter<Id>::makeAllocator();
     for (std::size_t i = 0; i < size; ++i) {
-        std::allocator_traits<typename Id::allocator>::destroy(allocator, &ptr[i]);
+        std::allocator_traits<decltype(allocator)>::destroy(allocator, &ptr[i]);
     }
-    std::allocator_traits<typename Id::allocator>::deallocate(allocator, ptr, size);
+    std::allocator_traits<decltype(allocator)>::deallocate(allocator, ptr, size);
 }
 
-template <typename... Ids> class DataLayoutAllocatePolicy<DataLayout::SoA, Ids...> {
-public:
+template <typename... Ids> struct DataLayoutAllocatePolicy<DataLayout::SoA, Ids...> {
     using type = detail::tt_impl<std::add_pointer, Ids...>;
 
     constexpr static void allocate(type& c, std::size_t size) {
