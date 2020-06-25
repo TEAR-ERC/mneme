@@ -5,6 +5,7 @@
 #include <tuple>
 #include <type_traits>
 
+#include "allocators.hpp"
 #include "iterator.hpp"
 #include "span.hpp"
 #include "tagged_tuple.hpp"
@@ -20,15 +21,37 @@ namespace detail {
 template <DataLayout TDataLayout, typename... Ids> struct DataLayoutAllocatePolicy;
 
 template <DataLayout TDataLayout, std::size_t Extent, typename... Ids>
-struct DataLayoutAccessPolicy;
+struct DataLayoutAccessPolicy {
+    static constexpr auto layout = TDataLayout;
+};
 
 template <typename... Ids> struct DataLayoutAllocatePolicy<DataLayout::AoS, Ids...> {
     using type = tagged_tuple<Ids...>*;
 
     constexpr static void allocate(type& c, std::size_t size) {
-        c = new tagged_tuple<Ids...>[size];
+        static_assert(allSameAllocator<Ids...>(),
+                      "AoS layout only works if all Ids share the same allocator.");
+        if constexpr (AllocatorInfo<Ids...>::template allSameAllocatorAs<AlignedAllocatorBase>()) {
+            constexpr auto alignment = getMaxAlignment<Ids...>();
+            using allocator_t = AlignedAllocator<tagged_tuple<Ids...>, alignment>;
+            auto allocator = allocator_t();
+
+            c = std::allocator_traits<allocator_t>::allocate(allocator, size);
+        } else {
+            auto allocator =
+                AllocatorGetter<tagged_tuple<Ids...>,
+                                StandardAllocator<tagged_tuple<Ids...>>>::makeAllocator();
+            c = std::allocator_traits<decltype(allocator)>::allocate(allocator, size);
+        }
     }
-    constexpr static void deallocate(type& c) { delete[] c; }
+    constexpr static void deallocate(type& c, std::size_t size) {
+        auto allocator = AllocatorGetter<tagged_tuple<Ids...>,
+                                         StandardAllocator<tagged_tuple<Ids...>>>::makeAllocator();
+        for (std::size_t i = 0; i < size; ++i) {
+            std::allocator_traits<decltype(allocator)>::destroy(allocator, &c[i]);
+        }
+        std::allocator_traits<decltype(allocator)>::deallocate(allocator, c, size);
+    }
 
     constexpr static type offset(type& c, std::size_t from) { return c + from; }
 
@@ -47,19 +70,34 @@ struct DataLayoutAccessPolicy<DataLayout::AoS, Extent, Ids...> {
     using type = typename DataLayoutAllocatePolicy<DataLayout::AoS, Ids...>::type;
     using value_type = const span<tagged_tuple<Ids...>, Extent>;
 
-    constexpr static value_type get(type& c, std::size_t from, std::size_t to) {
+    constexpr static auto get(type& c, std::size_t from, std::size_t to) {
         return value_type(&c[from], to - from);
     }
 };
+
+template <typename Id> typename Id::type* allocateHelper(std::size_t size) {
+    auto allocator = AllocatorGetter<Id>::makeAllocator();
+    return std::allocator_traits<decltype(allocator)>::allocate(allocator, size);
+}
+
+template <typename Id> void deallocateHelper(typename Id::type* ptr, std::size_t size) {
+    auto allocator = AllocatorGetter<Id>::makeAllocator();
+    for (std::size_t i = 0; i < size; ++i) {
+        std::allocator_traits<decltype(allocator)>::destroy(allocator, &ptr[i]);
+    }
+    std::allocator_traits<decltype(allocator)>::deallocate(allocator, ptr, size);
+}
 
 template <typename... Ids> struct DataLayoutAllocatePolicy<DataLayout::SoA, Ids...> {
     using type = detail::tt_impl<std::add_pointer, Ids...>;
 
     constexpr static void allocate(type& c, std::size_t size) {
-        ((c.template get<Ids>() = new typename Ids::type[size]), ...);
+        ((c.template get<Ids>() = allocateHelper<Ids>(size)), ...);
     }
 
-    constexpr static void deallocate(type& c) { ((delete[] c.template get<Ids>()), ...); }
+    constexpr static void deallocate(type& c, std::size_t size) {
+        ((deallocateHelper<Ids>(c.template get<Ids>(), size)), ...);
+    }
 
     constexpr static type offset(type& c, std::size_t from) {
         return type{(c.template get<Ids>() + from)...};
@@ -107,7 +145,7 @@ public:
 
     MultiStorage(std::size_t size) : size_(size) { allocate_policy_t::allocate(values, size); }
 
-    ~MultiStorage() { allocate_policy_t::deallocate(values); }
+    ~MultiStorage() { allocate_policy_t::deallocate(values, size_); }
 
     value_type<1u> operator[](std::size_t pos) noexcept {
         return access_policy_t<1u>::get(values, pos, pos + 1u);
