@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <memory>
 #include <numeric>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -151,7 +152,6 @@ private:
     std::vector<PlanT> plans;
     std::vector<std::size_t> offsets;
 };
-
 
 } // namespace mneme
 

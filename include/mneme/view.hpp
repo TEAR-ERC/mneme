@@ -1,14 +1,17 @@
 #ifndef MNEME_VIEW_H_
 #define MNEME_VIEW_H_
 
-#include <cstddef>
-#include <sstream>
-#include <stdexcept>
-#include <vector>
-
 #include "iterator.hpp"
 #include "plan.hpp"
+#include "span.hpp"
 #include "util.hpp"
+
+#include <cstddef>
+#include <memory>
+#include <sstream>
+#include <stdexcept>
+#include <utility>
+#include <vector>
 
 namespace mneme {
 
@@ -17,10 +20,24 @@ public:
     using offset_type = typename Storage::offset_type;
     using iterator = Iterator<StridedView<Storage, Stride>>;
 
+    StridedView() : size_(0), container_(nullptr) {}
+
     template <class Layout>
-    StridedView(Layout const& layout, Storage& container, std::size_t from, std::size_t to)
-        : size_(to - from), container(container), offset(container.offset(layout[from])) {
-        if (to <= from) {
+    StridedView(Layout const& layout, std::shared_ptr<Storage> container, std::size_t from,
+                std::size_t to) {
+        setStorage(layout, std::move(container), from, to);
+    }
+
+    template <class Layout>
+    void setStorage(Layout const& layout, std::shared_ptr<Storage> container, std::size_t from,
+                    std::size_t to) {
+        size_ = to - from;
+        container_ = std::move(container);
+        if (!container_) {
+            return;
+        }
+        offset = container_->offset(layout[from]);
+        if (!(to > from)) {
             throw std::runtime_error("'To' must be larger than 'from'.");
         }
         if constexpr (Stride == dynamic_extent) {
@@ -39,7 +56,25 @@ public:
         }
     }
 
-    auto operator[](std::size_t localId) noexcept {
+    void setStorage(std::shared_ptr<Storage> container, std::size_t from, std::size_t to,
+                    std::size_t strd = 1u) {
+        size_ = to - from;
+        container_ = std::move(container);
+        if (!container_) {
+            return;
+        }
+        if constexpr (Stride == dynamic_extent) {
+            stride = strd;
+        } else {
+            stride = Stride;
+        }
+        assert(container_->size() % stride == 0);
+
+        offset = container_->offset(from * stride);
+    }
+
+    auto operator[](std::size_t localId) noexcept -> typename Storage::template value_type<Stride> {
+        assert(container_ != nullptr);
         std::size_t s;
         if constexpr (Stride == dynamic_extent) {
             s = stride;
@@ -47,7 +82,7 @@ public:
             s = Stride;
         }
         std::size_t from = localId * s;
-        return container.template get<Stride>(offset, from, from + s);
+        return container_->template get<Stride>(offset, from, from + s);
     }
 
     [[nodiscard]] std::size_t size() const noexcept { return size_; }
@@ -56,8 +91,8 @@ public:
     iterator end() { return iterator(this, size()); }
 
 private:
-    std::size_t size_, stride;
-    Storage& container;
+    std::size_t size_ = 0, stride;
+    std::shared_ptr<Storage> container_;
     offset_type offset;
 };
 
@@ -68,17 +103,34 @@ public:
     using offset_type = typename Storage::offset_type;
     using iterator = Iterator<GeneralView<Storage>>;
 
+    GeneralView() : size_(0), container_(nullptr) {}
+
     template <class Layout>
-    GeneralView(Layout const& layout, Storage& container, std::size_t from, std::size_t to)
-        : size_(to - from), sl(layout.begin() + from, layout.begin() + to), container(container),
-          offset(container.offset(layout[from])) {
+    GeneralView(Layout const& layout, std::shared_ptr<Storage> container, std::size_t from,
+                std::size_t to) {
+        setStorage(layout, std::move(container), from, to);
+    }
+
+    template <class Layout>
+    void setStorage(Layout const& layout, std::shared_ptr<Storage> container, std::size_t from,
+                    std::size_t to) {
+        size_ = to - from;
+        sl.clear();
+        sl.insert(sl.begin(), layout.begin() + from, layout.begin() + to);
+        container_ = std::move(container);
+        if (container_ == nullptr) {
+            return;
+        }
+        offset = container_->offset(layout[from]);
         if (!(to > from)) {
             throw std::runtime_error("'To' must be larger than 'from'.");
         }
     }
 
-    auto operator[](std::size_t localId) noexcept {
-        return container.get(offset, sl[localId], sl[localId + 1]);
+    auto operator[](std::size_t localId) noexcept ->
+        typename Storage::template value_type<dynamic_extent> {
+        assert(container_ != nullptr);
+        return container_->get<dynamic_extent>(offset, sl[localId], sl[localId + 1]);
     }
 
     std::size_t size() const noexcept { return size_; }
@@ -87,9 +139,9 @@ public:
     iterator end() { return iterator(this, size()); }
 
 private:
-    std::size_t size_;
+    std::size_t size_ = 0;
     std::vector<std::size_t> sl;
-    Storage& container;
+    std::shared_ptr<Storage> container_;
     offset_type offset;
 };
 
@@ -118,10 +170,10 @@ public:
                                   MaybeClusterId>(somePlan, maybeStorage, maybeClusterId);
     }
 
-    template <typename StorageT> constexpr auto withStorage(StorageT& storage) const {
-        const auto someStorage = StaticSome<StorageT*>(&storage);
-        return LayeredViewFactory<MaybeStride, MaybePlan, StaticSome<StorageT*>, MaybeClusterId>(
-            maybePlan, someStorage, maybeClusterId);
+    template <typename StorageT> constexpr auto withStorage(StorageT storage) const {
+        auto someStorage = StaticSome<StorageT>(storage);
+        return LayeredViewFactory<MaybeStride, MaybePlan, StaticSome<StorageT>, MaybeClusterId>(
+            maybePlan, std::move(someStorage), maybeClusterId);
     }
     [[nodiscard]] auto withClusterId(std::size_t clusterId) const {
         const auto someClusterId = StaticSome<std::size_t>(clusterId);
@@ -153,8 +205,8 @@ public:
         auto layout = maybePlan.value.getLayout();
         const auto [from, to] = getFromToForLayer<Layer>();
 
-        return StridedView<std::remove_pointer_t<typename MaybeStorage_::type>, MaybeStride::value>(
-            layout, *(maybeStorage.value), from, to);
+        return StridedView<typename MaybeStorage_::type::element_type, MaybeStride::value>(
+            layout, (maybeStorage.value), from, to);
     }
 
     template <
@@ -167,8 +219,8 @@ public:
         auto layout = maybePlan.value.getLayout();
         const auto [from, to] = getFromToForLayer<Layer>();
 
-        return DenseView<std::remove_pointer_t<typename MaybeStorage_::type>>(
-            layout, *(maybeStorage.value), from, to);
+        return DenseView<typename MaybeStorage_::type::element_type>(
+            layout, std::move(maybeStorage.value), from, to);
     }
 
 private:

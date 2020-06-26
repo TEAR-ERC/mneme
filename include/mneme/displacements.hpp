@@ -18,6 +18,7 @@ public:
 
     DisplacementsIterator(std::vector<IntT> const& displs, bool end = false)
         : displs(displs), p(0), i(0) {
+        assert(displs.size() > 0);
         if (end) {
             p = displs.size() - 1;
             i = displs[p];
@@ -48,7 +49,7 @@ public:
 
 private:
     void next() {
-        while (i >= displs[p + 1] && p < static_cast<IntT>(displs.size()) - 1) {
+        while (p < static_cast<IntT>(displs.size()) - 1 && i >= displs[p + 1]) {
             ++p;
             i = displs[p];
         }

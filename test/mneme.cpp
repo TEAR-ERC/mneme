@@ -1,14 +1,13 @@
-#include <array>
-#include <functional>
-#include <iostream>
-#include <optional>
-
 #include "mneme/plan.hpp"
 #include "mneme/storage.hpp"
 #include "mneme/view.hpp"
 
 #include "doctest.h"
 
+#include <array>
+#include <functional>
+#include <memory>
+#include <optional>
 using namespace mneme;
 
 struct ElasticMaterial {
@@ -17,14 +16,20 @@ struct ElasticMaterial {
     double lambda;
 };
 
-struct dofs {
+struct dofsAligned {
     using type = double;
+    using allocator = StandardAllocator<type>;
 };
 struct material {
     using type = ElasticMaterial;
+    using allocator = StandardAllocator<type>;
+};
+struct dofs {
+    using type = double;
 };
 struct bc {
     using type = std::array<int, 4>;
+    using allocator = StandardAllocator<type>;
 };
 
 struct Ghost : public Layer {};
@@ -53,22 +58,43 @@ TEST_CASE("Data structure works") {
     }
     auto dofsLayout = dofsPlan.getLayout();
 
-    SUBCASE("MultiStorage works") {
-        using local_storage_t = MultiStorage<DataLayout::SoA, material, bc>;
-        local_storage_t localC(localLayout.back());
-        DenseView<local_storage_t> localView(localLayout, localC, NghostP1, N);
-        for (int i = 0; i < static_cast<int>(localView.size()); ++i) {
-            localView[i].get<material>() = ElasticMaterial{1.0 * i, 1.0 * i, 2.0 * i};
+    using aos_t = MultiStorage<DataLayout::AoS, material, bc>;
+    using soa_t = MultiStorage<DataLayout::SoA, material, bc>;
+    auto localAoS = std::make_shared<aos_t>(localLayout.back());
+    auto localSoA = std::make_shared<soa_t>(localLayout.back());
+    auto testMaterial = [](auto&& X) {
+        for (int i = 0; i < static_cast<int>(X.size()); ++i) {
+            X[i].template get<material>() = ElasticMaterial{1.0 * i, 1.0 * i, 2.0 * i};
         }
         int i = 0;
-        for (auto&& v : localView) {
-            REQUIRE(v.get<material>().lambda == 2.0 * i++);
+        for (auto&& x : X) {
+            REQUIRE(x.template get<material>().lambda == 2.0 * i++);
         }
+    };
+
+    SUBCASE("MultiStorage AoS works") { testMaterial(*localAoS); }
+
+    SUBCASE("MultiStorage SoA works") { testMaterial(*localSoA); }
+
+    SUBCASE("DenseView AoS works") {
+        DenseView<aos_t> localView(localLayout, localAoS, NghostP1, N);
+        testMaterial(localView);
+    }
+
+    SUBCASE("DenseView SoA works") {
+        DenseView<soa_t> localView(localLayout, localSoA, NghostP1, N);
+        testMaterial(localView);
+    }
+
+    SUBCASE("DenseView AoS works") {
+        DenseView<aos_t> localView(localLayout, localAoS, NghostP1, N);
+        testMaterial(localView);
     }
 
     SUBCASE("SingleStorage works") {
-        using dofs_storage_t = SingleStorage<dofs>;
-        dofs_storage_t dofsC(dofsLayout.back());
+        using dofs_storage_t = SingleStorage<dofsAligned>;
+        auto dofsC = std::make_shared<dofs_storage_t>(dofsLayout.back());
+
         StridedView<dofs_storage_t, 4U> dofsV(dofsLayout, dofsC, 0, NghostP1 + NinteriorP1);
         int k = 0;
         int l = 0;
@@ -80,7 +106,7 @@ TEST_CASE("Data structure works") {
             ++k;
         }
         for (int j = 0; j < NghostP1 + NinteriorP1; ++j) {
-            REQUIRE(dofsC[j] == j / 4 + 4 * (j % 4));
+            REQUIRE((*dofsC)[j] == j / 4 + 4 * (j % 4));
         }
     }
 }
@@ -148,8 +174,10 @@ TEST_CASE("Layered Plans") {
 
     SUBCASE("MultiStorage works") {
         using local_storage_t = MultiStorage<DataLayout::SoA, material, bc>;
-        local_storage_t localC(localLayout.back());
+        auto localC = std::make_shared<local_storage_t>(localLayout.back());
+
         auto materialViewFactory = createViewFactory().withPlan(localPlan).withStorage(localC);
+
         auto localViewCopy = materialViewFactory.createDenseView<Copy>();
 
         for (int i = 0; i < static_cast<int>(localViewCopy.size()); ++i) {
@@ -157,12 +185,12 @@ TEST_CASE("Layered Plans") {
         }
         int i = 0;
         for (auto&& v : localViewCopy) {
-            REQUIRE(v.get<material>().lambda == 2.0 * i++);
+            CHECK(v.get<material>().lambda == 2.0 * i++);
         }
     }
     SUBCASE("SingleStorage works") {
         using dofs_storage_t = SingleStorage<dofs>;
-        dofs_storage_t dofsC(dofsLayout.back());
+        auto dofsC = std::make_shared<dofs_storage_t>(dofsLayout.back());
 
         auto dofsViewFactory = createViewFactory().withPlan(dofsPlan).withStorage(dofsC);
         auto dofsViewInterior =
@@ -177,14 +205,14 @@ TEST_CASE("Layered Plans") {
             ++k;
         }
         for (std::size_t j = 0; j < numInterior; ++j) {
-            CHECK(dofsC[j] == j / 10 + 10 * (j % 10));
+            CHECK((*dofsC)[j] == j / 10 + 10 * (j % 10));
         }
     }
     SUBCASE("Combined plan") {
         auto plans = std::vector{localPlan, localPlan};
         auto combinedPlan = CombinedLayeredPlan<Interior, Copy, Ghost>(plans);
         using local_storage_t = MultiStorage<DataLayout::SoA, material, bc>;
-        local_storage_t localC(localLayout.back());
+        auto localC = std::make_shared<local_storage_t>(localLayout.back());
         auto combinedLayout = combinedPlan.getLayout();
         auto materialViewFactory = createViewFactory().withPlan(combinedPlan).withStorage(localC);
         auto localViewCopy = materialViewFactory.withClusterId(0).createDenseView<Copy>();
@@ -194,11 +222,9 @@ TEST_CASE("Layered Plans") {
             std::cout << "Interior:\t" << interior.numElements << " " << interior.offset
                       << std::endl;
             auto copy = combinedPlan.getLayer<Copy>(i);
-            std::cout << "Copy:\t" << copy.numElements << " " << copy.offset
-                      << std::endl;
+            std::cout << "Copy:\t" << copy.numElements << " " << copy.offset << std::endl;
             auto ghost = combinedPlan.getLayer<Ghost>(i);
-            std::cout << "Ghost:\t" << ghost.numElements << " " << ghost.offset
-                      << std::endl;}
+            std::cout << "Ghost:\t" << ghost.numElements << " " << ghost.offset << std::endl;
+        }
     }
-
 }
