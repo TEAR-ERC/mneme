@@ -87,9 +87,9 @@ public:
     }
 
     const LayoutT& getLayout() const {
-        if (layout == std::nullopt) {
-            layout = plan.getLayout();
-        }
+        // if (layout == std::nullopt) {
+        layout = plan.getLayout();
+        //}
         return *layout;
     }
 
@@ -117,24 +117,22 @@ public:
         for (std::size_t i = 0; i < plans.size(); ++i) {
             const auto& plan = plans[i];
             offsets[i] = offset;
-            offset += plan.getOffset();
+            offset += plan.size();
         }
     }
 
     [[nodiscard]] LayoutT getLayout() const {
         const std::size_t totalNumberOfDofs =
-            std::accumulate(plans.begin(), plans.end(), 0u,
+            std::accumulate(plans.begin(), plans.end(), 0U,
                             [](auto count, auto& vec) { return count + vec.size(); });
 
         std::vector<size_t> combinedDofs(totalNumberOfDofs);
         std::size_t idx = 0;
-        for (auto i = 0u; i < plans.size(); ++i) {
+        for (auto i = 0U; i < plans.size(); ++i) {
             const auto& plan = plans[i];
-            const auto offset = offsets[i];
             const auto& curLayout = plan.getLayout();
-            for (auto i = 0u; i < curLayout.size(); ++i) {
-                // TODO(Lukas) Use correct offset
-                combinedDofs[idx] = offset + curLayout.count(i);
+            for (auto j = 0U; j < curLayout.size(); ++j) {
+                combinedDofs[idx] = curLayout.count(j);
                 ++idx;
             }
         }
@@ -152,7 +150,6 @@ private:
     std::vector<PlanT> plans;
     std::vector<std::size_t> offsets;
 };
-
 } // namespace mneme
 
 #endif // MNEME_PLAN_H_

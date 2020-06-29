@@ -212,19 +212,44 @@ TEST_CASE("Layered Plans") {
         auto plans = std::vector{localPlan, localPlan};
         auto combinedPlan = CombinedLayeredPlan<Interior, Copy, Ghost>(plans);
         using local_storage_t = MultiStorage<DataLayout::SoA, material, bc>;
-        auto localC = std::make_shared<local_storage_t>(localLayout.back());
         auto combinedLayout = combinedPlan.getLayout();
+        auto localC = std::make_shared<local_storage_t>(combinedLayout.back());
         auto materialViewFactory = createViewFactory().withPlan(combinedPlan).withStorage(localC);
-        auto localViewCopy = materialViewFactory.withClusterId(0).createDenseView<Copy>();
-        for (int i = 0; i < 2; ++i) {
-            std::cout << "Cluster = " << i << std::endl;
-            auto interior = combinedPlan.getLayer<Interior>(i);
-            std::cout << "Interior:\t" << interior.numElements << " " << interior.offset
-                      << std::endl;
-            auto copy = combinedPlan.getLayer<Copy>(i);
-            std::cout << "Copy:\t" << copy.numElements << " " << copy.offset << std::endl;
-            auto ghost = combinedPlan.getLayer<Ghost>(i);
-            std::cout << "Ghost:\t" << ghost.numElements << " " << ghost.offset << std::endl;
+        auto localViewCopyCluster0 = materialViewFactory.withClusterId(0).createDenseView<Copy>();
+        auto localViewCopyCluster1 = materialViewFactory.withClusterId(1).createDenseView<Copy>();
+        auto localViewInteriorCluster0 =
+            materialViewFactory.withClusterId(0).createDenseView<Interior>();
+        auto localViewInteriorCluster1 =
+            materialViewFactory.withClusterId(1).createDenseView<Interior>();
+        for (std::size_t i = 0; i < localViewInteriorCluster0.size(); ++i) {
+            localViewInteriorCluster0[i].get<material>() =
+                ElasticMaterial{1.0 * i, 1.0 * i, 2.0 * i};
+        }
+        for (std::size_t i = 0; i < localViewInteriorCluster1.size(); ++i) {
+            localViewInteriorCluster1[i].get<material>() =
+                ElasticMaterial{2.0 * i, 2.0 * i, 4.0 * i};
+        }
+        for (std::size_t i = 0; i < localViewCopyCluster0.size(); ++i) {
+            localViewCopyCluster0[i].get<material>() = ElasticMaterial{3.0 * i, 3.0 * i, 6.0 * i};
+        }
+        for (std::size_t i = 0; i < localViewCopyCluster1.size(); ++i) {
+            localViewCopyCluster1[i].get<material>() = ElasticMaterial{4.0 * i, 4.0 * i, 8.0 * i};
+        }
+        int i = 0;
+        for (auto&& v : localViewInteriorCluster0) {
+            CHECK(v.get<material>().lambda == 2.0 * i++);
+        }
+        i = 0;
+        for (auto&& v : localViewInteriorCluster1) {
+            CHECK(v.get<material>().lambda == 4.0 * i++);
+        }
+        i = 0;
+        for (auto&& v : localViewCopyCluster0) {
+            CHECK(v.get<material>().lambda == 6.0 * i++);
+        }
+        i = 0;
+        for (auto&& v : localViewCopyCluster1) {
+            CHECK(v.get<material>().lambda == 8.0 * i++);
         }
     }
 }
