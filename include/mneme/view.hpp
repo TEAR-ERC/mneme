@@ -84,6 +84,7 @@ public:
     }
 
     std::size_t size() const noexcept { return size_; }
+    Storage const& storage() const noexcept { return *container_; }
 
     iterator begin() { return iterator(this, 0); }
     iterator end() { return iterator(this, size()); }
@@ -132,6 +133,7 @@ public:
     }
 
     std::size_t size() const noexcept { return size_; }
+    Storage const& storage() const noexcept { return *container_; }
 
     iterator begin() { return iterator(this, 0); }
     iterator end() { return iterator(this, size()); }
