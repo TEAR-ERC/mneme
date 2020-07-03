@@ -62,7 +62,9 @@ template <typename... Ids> struct DataLayoutAccessPolicy<DataLayout::AoS, 1u, Id
     using type = typename DataLayoutAllocatePolicy<DataLayout::AoS, Ids...>::type;
     using value_type = tagged_tuple<Ids...>&;
 
-    constexpr static value_type get(type& c, std::size_t from, std::size_t) { return c[from]; }
+    constexpr static value_type get(type const& c, std::size_t from, std::size_t) {
+        return c[from];
+    }
 };
 
 template <std::size_t Extent, typename... Ids>
@@ -70,7 +72,7 @@ struct DataLayoutAccessPolicy<DataLayout::AoS, Extent, Ids...> {
     using type = typename DataLayoutAllocatePolicy<DataLayout::AoS, Ids...>::type;
     using value_type = const span<tagged_tuple<Ids...>, Extent>;
 
-    constexpr static auto get(type& c, std::size_t from, std::size_t to) {
+    constexpr static auto get(type const& c, std::size_t from, std::size_t to) {
         return value_type(&c[from], to - from);
     }
 };
@@ -112,7 +114,7 @@ template <typename... Ids> struct DataLayoutAccessPolicy<DataLayout::SoA, 1u, Id
     using type = typename DataLayoutAllocatePolicy<DataLayout::SoA, Ids...>::type;
     using value_type = const detail::tt_impl<std::add_lvalue_reference, Ids...>;
 
-    constexpr static value_type get(type& c, std::size_t from, std::size_t) {
+    constexpr static value_type get(type const& c, std::size_t from, std::size_t) {
         return value_type{c.template get<Ids>()[from]...};
     }
 };
@@ -123,7 +125,7 @@ struct DataLayoutAccessPolicy<DataLayout::SoA, Extent, Ids...> {
     template <typename T> struct add_span { using type = const span<T, Extent>; };
     using value_type = const detail::tt_impl<add_span, Ids...>;
 
-    constexpr static value_type get(type& c, std::size_t from, std::size_t to) {
+    constexpr static value_type get(type const& c, std::size_t from, std::size_t to) {
         return value_type{
             span<typename Ids::type, Extent>(&c.template get<Ids>()[from], to - from)...};
     }
@@ -161,6 +163,12 @@ public:
         return access_policy_t<Extent>::get(offset, from, to);
     }
 
+    template <std::size_t Extent = dynamic_extent>
+    value_type<Extent> get(offset_type const& offset, std::size_t from,
+                           std::size_t to) const noexcept {
+        return access_policy_t<Extent>::get(offset, from, to);
+    }
+
     void resize(std::size_t size) {
         size_ = size;
         allocate_policy_t::deallocate(values);
@@ -193,6 +201,12 @@ public:
 
     template <std::size_t Extent = dynamic_extent>
     value_type<Extent> get(offset_type& offset, std::size_t from, std::size_t to) noexcept {
+        return storage_t::template get<Extent>(offset, from, to).template get<Id>();
+    }
+
+    template <std::size_t Extent = dynamic_extent>
+    value_type<Extent> get(offset_type const& offset, std::size_t from,
+                           std::size_t to) const noexcept {
         return storage_t::template get<Extent>(offset, from, to).template get<Id>();
     }
 };
