@@ -210,7 +210,7 @@ TEST_CASE("Layered Plans") {
     }
     SUBCASE("Combined plan") {
         auto plans = std::vector{localPlan, localPlan};
-        auto combinedPlan = CombinedLayeredPlan<Interior, Copy, Ghost>(plans);
+        auto combinedPlan = CombinedLayeredPlan(plans);
         using local_storage_t = MultiStorage<DataLayout::SoA, material, bc>;
         auto combinedLayout = combinedPlan.getLayout();
         auto localC = std::make_shared<local_storage_t>(combinedLayout.back());
