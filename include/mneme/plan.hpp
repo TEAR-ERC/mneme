@@ -16,13 +16,13 @@ namespace mneme {
 
 class Plan {
 public:
-    using LayoutType = Displacements<std::size_t>;
+    using layout_t = Displacements<std::size_t>;
     explicit Plan(std::size_t numElements) : dofs(numElements, 0) {}
 
     void setDof(std::size_t elementNo, std::size_t dof) { dofs[elementNo] = dof; }
 
     void resize(std::size_t newSize) { dofs.resize(newSize); }
-    [[nodiscard]] LayoutType getLayout() const { return Displacements(dofs); }
+    [[nodiscard]] layout_t getLayout() const { return Displacements(dofs); }
 
 private:
     std::vector<std::size_t> dofs;
@@ -39,11 +39,26 @@ public:
 
 class LayeredPlanBase {};
 
+/***
+ * This class implements a way of creating plans with multiple layers.
+ * You can use it like this:
+ * constexpr auto dofsInterior = [numDofsInterior](auto) { return numDofsInterior; };
+ *  constexpr auto dofsCopy = [numDofsCopy](auto) { return numDofsCopy; };
+ *  constexpr auto dofsGhost = [numDofsGhost](auto) { return numDofsGhost; };
+ *  const LayeredPlan<Interior, Copy, Ghost> dofsPlan = LayeredPlan()
+ *                       .withDofs<Interior>(numInterior, dofsInterior)
+ *                       .withDofs<Copy>(numCopy, dofsCopy)
+ *                       .withDofs<Ghost>(numGhost, dofsGhost);
+ *  dofsInterior, dofsCopy, dofsGhost are functions that return the number of dofs
+ *  for each index/layer.
+ *  Afterwards, you can use dofsPlan like every other plan.
+ * @tparam Layers is a list of Layers that inherit from the type Layer.
+ */
 template <typename... Layers> class LayeredPlan : public LayeredPlanBase {
     template <typename... OtherLayers> friend class LayeredPlan;
 
 public:
-    using LayoutT = Displacements<std::size_t>;
+    using layout_t = Displacements<std::size_t>;
     LayeredPlan() : plan(0){};
 
     LayeredPlan(std::size_t curOffset, std::size_t numElements, Plan plan,
@@ -86,10 +101,10 @@ public:
         return newPlan;
     }
 
-    const LayoutT& getLayout() const {
-        // if (layout == std::nullopt) {
-        layout = plan.getLayout();
-        //}
+    const layout_t& getLayout() const {
+        if (layout == std::nullopt) {
+            layout = plan.getLayout();
+        }
         return *layout;
     }
 
@@ -102,17 +117,26 @@ private:
     std::size_t curOffset = 0;
     std::size_t numElements = 0;
     Plan plan;
-    mutable std::optional<LayoutT> layout;
+    mutable std::optional<layout_t> layout;
 };
 
 class CombinedLayeredPlanBase {};
 
+/**
+ * This class allows you to combine multiple LayeredPlans into one.
+ * You can use this to have multiple plans for subsets of your domain
+ * but with one single Layout.
+ * You can use it like this:
+ * auto plans = std::vector{localPlan, localPlan};
+ * auto combinedPlan = CombinedLayeredPlan(plans);
+ * @tparam Layers is a list of Layers that inherit from the type Layer.
+ */
 template <typename... Layers> class CombinedLayeredPlan : public CombinedLayeredPlanBase {
 public:
-    using PlanT = LayeredPlan<Layers...>;
-    using LayoutT = Displacements<size_t>;
+    using plan_t = LayeredPlan<Layers...>;
+    using layout_t = Displacements<size_t>;
 
-    explicit CombinedLayeredPlan(std::vector<PlanT> plans) : plans(plans), offsets(plans.size()) {
+    explicit CombinedLayeredPlan(std::vector<plan_t> plans) : plans(plans), offsets(plans.size()) {
         std::size_t offset = 0;
         for (std::size_t i = 0; i < plans.size(); ++i) {
             const auto& plan = plans[i];
@@ -121,7 +145,7 @@ public:
         }
     }
 
-    [[nodiscard]] LayoutT getLayout() const {
+    [[nodiscard]] layout_t getLayout() const {
         const std::size_t totalNumberOfDofs =
             std::accumulate(plans.begin(), plans.end(), 0U,
                             [](auto count, auto& vec) { return count + vec.size(); });
@@ -147,7 +171,7 @@ public:
     }
 
 private:
-    std::vector<PlanT> plans;
+    std::vector<plan_t> plans;
     std::vector<std::size_t> offsets;
 };
 } // namespace mneme
