@@ -59,7 +59,7 @@ template <typename... Layers> class LayeredPlan : public LayeredPlanBase {
 
 public:
     using layout_t = Displacements<std::size_t>;
-    LayeredPlan() : plan(0){};
+    LayeredPlan() : plan(0) {}
 
     LayeredPlan(std::size_t curOffset, std::size_t numElements, Plan plan,
                 std::tuple<Layers...> layers)
