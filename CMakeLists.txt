@@ -7,7 +7,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 enable_testing()
-include(CTest)
 include(cmake/doctest.cmake)
 
 add_library(mneme-test-runner test/test_main.cpp)
