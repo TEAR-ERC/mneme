@@ -28,25 +28,24 @@ struct DataLayoutAccessPolicy {
 template <typename... Ids> struct DataLayoutAllocatePolicy<DataLayout::AoS, Ids...> {
     using type = tagged_tuple<Ids...>*;
 
-    constexpr static void allocate(type& c, std::size_t size) {
+    constexpr static auto makeAllocator() {
         static_assert(allSameAllocator<Ids...>(),
                       "AoS layout only works if all Ids share the same allocator.");
         if constexpr (AllocatorInfo<Ids...>::template allSameAllocatorAs<AlignedAllocatorBase>()) {
             constexpr auto alignment = getMaxAlignment<Ids...>();
-            using allocator_t = AlignedAllocator<tagged_tuple<Ids...>, alignment>;
-            auto allocator = allocator_t();
-
-            c = std::allocator_traits<allocator_t>::allocate(allocator, size);
+            return AlignedAllocator<tagged_tuple<Ids...>, alignment>();
         } else {
-            auto allocator =
-                AllocatorGetter<tagged_tuple<Ids...>,
-                                StandardAllocator<tagged_tuple<Ids...>>>::makeAllocator();
-            c = std::allocator_traits<decltype(allocator)>::allocate(allocator, size);
+            return AllocatorGetter<tagged_tuple<Ids...>,
+                                   StandardAllocator<tagged_tuple<Ids...>>>::makeAllocator();
         }
     }
+
+    constexpr static void allocate(type& c, std::size_t size) {
+        auto allocator = makeAllocator();
+        c = std::allocator_traits<decltype(allocator)>::allocate(allocator, size);
+    }
     constexpr static void deallocate(type& c, std::size_t size) {
-        auto allocator = AllocatorGetter<tagged_tuple<Ids...>,
-                                         StandardAllocator<tagged_tuple<Ids...>>>::makeAllocator();
+        auto allocator = makeAllocator();
         for (std::size_t i = 0; i < size; ++i) {
             std::allocator_traits<decltype(allocator)>::destroy(allocator, &c[i]);
         }

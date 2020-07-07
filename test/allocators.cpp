@@ -24,6 +24,7 @@ TEST_CASE("Aligned allocator works") {
     auto allocator = allocator_t();
     auto* mem = allocator_traits_t::allocate(allocator, 100);
     checkPointerAlignment(mem, alignment);
+    allocator_traits_t::deallocate(allocator, mem, 100);
 
     SUBCASE("Aligned allocator can be used with std containers") {
         auto alignedVec = std::vector<value_t, allocator_t>(1000);
