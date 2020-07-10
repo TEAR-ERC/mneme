@@ -94,7 +94,11 @@ public:
 
     Displacements(std::vector<IntT> const& count) { make(count); }
 
-    void make(std::vector<IntT> const& count) {
+    template <typename OtherIntT>
+    Displacements(std::vector<OtherIntT> const& count) { make(count); }
+
+    template <typename OtherIntT>
+    void make(std::vector<OtherIntT> const& count) {
         displs.resize(count.size() + 1);
         displs[0] = 0;
         for (IntT p = 0; p < static_cast<IntT>(count.size()); ++p) {
