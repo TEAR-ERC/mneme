@@ -122,6 +122,7 @@ public:
                     std::size_t to) {
         size_ = to - from;
         sl.clear();
+        sl.reserve(size_);
         sl.insert(sl.begin(), layout.begin() + from, layout.begin() + to);
         container_ = std::move(container);
         if (container_ == nullptr) {
