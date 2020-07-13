@@ -169,8 +169,8 @@ public:
     }
 
     void resize(std::size_t size) {
+        allocate_policy_t::deallocate(values, size_);
         size_ = size;
-        allocate_policy_t::deallocate(values);
         allocate_policy_t::allocate(values, size);
     }
 
