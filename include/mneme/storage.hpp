@@ -157,6 +157,10 @@ public:
         return access_policy_t<1u>::get(values, pos, pos + 1u);
     }
 
+    const value_type<1u> operator[](std::size_t pos) const noexcept {
+        return access_policy_t<1u>::get(values, pos, pos + 1u);
+    }
+
     template <std::size_t Extent = dynamic_extent>
     value_type<Extent> get(offset_type& offset, std::size_t from, std::size_t to) noexcept {
         return access_policy_t<Extent>::get(offset, from, to);
@@ -195,6 +199,10 @@ public:
     using value_type = typename storage_t::template value_type<Extent>::template element_t<Id>;
 
     auto& operator[](std::size_t pos) noexcept {
+        return storage_t::operator[](pos).template get<Id>();
+    }
+
+    const auto& operator[](std::size_t pos) const noexcept {
         return storage_t::operator[](pos).template get<Id>();
     }
 
