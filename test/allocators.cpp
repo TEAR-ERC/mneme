@@ -91,11 +91,10 @@ TEST_CASE("Alignment works MultiStorage") {
     SUBCASE("AoS Multistorage is aligned") {
         using local_storage_aos_t = MultiStorage<DataLayout::AoS, dofsAligned, dofsAlignedLarge>;
         auto localStorageAoS = std::make_shared<local_storage_aos_t>(dofsLayout.back());
-        auto localViewAoS =
+        [[maybe_unused]] auto localViewAoS =
             DenseView<local_storage_aos_t>(dofsLayout, localStorageAoS, 0, numElements);
 
-        // Only the last type parameter is aligned but with the larger of both alignments.
-        checkPointerAlignment(&localViewAoS[0].get<dofsAligned>(), 2 * alignment);
+        // Only check compilation, no guarantees on tuple storage layout
     }
 }
 
