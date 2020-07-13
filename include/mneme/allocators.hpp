@@ -32,9 +32,13 @@ template <class T, std::size_t Alignment> struct AlignedAllocator : public Align
         static_assert(isPowerOfTwo, "Alignment has to be a power of two");
         constexpr bool isFactorOfPtrSize = Alignment % sizeof(void*) == 0;
         static_assert(isFactorOfPtrSize, "Alignment has to be a constant of void ptr size");
-        const auto ptr = reinterpret_cast<T*>(std::aligned_alloc(Alignment, n * sizeof(T)));
-        auto isError = ptr == nullptr;
+        std::size_t size = n * sizeof(T);
+        // size must be a multiple of Alignment
+        // size := ceil(size/Alignment) * Alignment
+        size = (size > 0U) ? (1U + (size - 1U) / Alignment) * Alignment : 0U;
 
+        const auto ptr = reinterpret_cast<T*>(std::aligned_alloc(Alignment, size));
+        auto isError = ptr == nullptr;
         if (isError) {
             throw std::bad_alloc();
         }

@@ -24,6 +24,7 @@ TEST_CASE("Aligned allocator works") {
     auto allocator = allocator_t();
     auto* mem = allocator_traits_t::allocate(allocator, 100);
     checkPointerAlignment(mem, alignment);
+    allocator_traits_t::deallocate(allocator, mem, 100);
 
     SUBCASE("Aligned allocator can be used with std containers") {
         auto alignedVec = std::vector<value_t, allocator_t>(1000);
@@ -88,13 +89,12 @@ TEST_CASE("Alignment works MultiStorage") {
         checkPointerAlignment(&localViewSoA[0].get<dofsAlignedLarge>(), 2 * alignment);
     }
     SUBCASE("AoS Multistorage is aligned") {
-        using local_storage_aos_t = MultiStorage<DataLayout::AoS, dofsAlignedLarge, dofsAligned>;
+        using local_storage_aos_t = MultiStorage<DataLayout::AoS, dofsAligned, dofsAlignedLarge>;
         auto localStorageAoS = std::make_shared<local_storage_aos_t>(dofsLayout.back());
-        auto localViewAoS =
+        [[maybe_unused]] auto localViewAoS =
             DenseView<local_storage_aos_t>(dofsLayout, localStorageAoS, 0, numElements);
 
-        // Only the last type parameter is aligned but with the larger of both alignments.
-        checkPointerAlignment(&localViewAoS[0].get<dofsAligned>(), 2 * alignment);
+        // Only check compilation, no guarantees on tuple storage layout
     }
 }
 

@@ -74,6 +74,11 @@ public:
     }
 
     auto operator[](std::size_t localId) noexcept -> typename Storage::template value_type<Stride> {
+        return (*const_cast<const StridedView<Storage, Stride>*>(this))[localId];
+    }
+
+    auto operator[](std::size_t localId) const noexcept ->
+        typename Storage::template value_type<Stride> {
         assert(container_ != nullptr);
         std::size_t s;
         if constexpr (Stride == dynamic_extent) {
@@ -86,6 +91,7 @@ public:
     }
 
     [[nodiscard]] std::size_t size() const noexcept { return size_; }
+    Storage const& storage() const noexcept { return *container_; }
 
     iterator begin() { return iterator(this, 0); }
     iterator end() { return iterator(this, size()); }
@@ -116,6 +122,7 @@ public:
                     std::size_t to) {
         size_ = to - from;
         sl.clear();
+        sl.reserve(size_);
         sl.insert(sl.begin(), layout.begin() + from, layout.begin() + to);
         container_ = std::move(container);
         if (container_ == nullptr) {
@@ -129,11 +136,17 @@ public:
 
     auto operator[](std::size_t localId) noexcept ->
         typename Storage::template value_type<dynamic_extent> {
+        return (*const_cast<const GeneralView<Storage>*>(this))[localId];
+    }
+
+    auto operator[](std::size_t localId) const noexcept ->
+        typename Storage::template value_type<dynamic_extent> {
         assert(container_ != nullptr);
-        return container_->get<dynamic_extent>(offset, sl[localId], sl[localId + 1]);
+        return container_->template get<dynamic_extent>(offset, sl[localId], sl[localId + 1]);
     }
 
     std::size_t size() const noexcept { return size_; }
+    Storage const& storage() const noexcept { return *container_; }
 
     iterator begin() { return iterator(this, 0); }
     iterator end() { return iterator(this, size()); }
@@ -156,7 +169,7 @@ public:
                        MaybeClusterId maybeClusterId)
         : maybePlan(maybePlan), maybeStorage(maybeStorage), maybeClusterId(maybeClusterId) {}
 
-    template <std::size_t Stride>[[nodiscard]] auto withStride() const {
+    template <std::size_t Stride> [[nodiscard]] auto withStride() const {
         return LayeredViewFactory<std::integral_constant<std::size_t, Stride>, MaybePlan,
                                   MaybeStorage, MaybeClusterId>(maybePlan, maybeStorage,
                                                                 maybeClusterId);
