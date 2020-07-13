@@ -136,13 +136,13 @@ public:
 
     auto operator[](std::size_t localId) noexcept ->
         typename Storage::template value_type<dynamic_extent> {
-        return const_cast<const GeneralView<Storage>*>(this)[localId];
+        return (*const_cast<const GeneralView<Storage>*>(this))[localId];
     }
 
     auto operator[](std::size_t localId) const noexcept ->
         typename Storage::template value_type<dynamic_extent> {
         assert(container_ != nullptr);
-        return container_->get<dynamic_extent>(offset, sl[localId], sl[localId + 1]);
+        return container_->template get<dynamic_extent>(offset, sl[localId], sl[localId + 1]);
     }
 
     std::size_t size() const noexcept { return size_; }
