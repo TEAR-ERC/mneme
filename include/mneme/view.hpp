@@ -177,6 +177,7 @@ public:
 
     [[nodiscard]] auto withDynamicStride() const { return withStride<dynamic_extent>(); }
 
+    // TODO(Lukas) This shouldn't copy plan probably.
     template <typename LayeredPlanT> auto withPlan(LayeredPlanT& plan) const {
         const auto somePlan = StaticSome<LayeredPlanT>(plan);
         return LayeredViewFactory<MaybeStride, StaticSome<LayeredPlanT>, MaybeStorage,
