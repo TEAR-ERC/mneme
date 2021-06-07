@@ -213,8 +213,8 @@ public:
         typename MaybeStorage_ = MaybeStorage, typename MaybeClusterId_ = MaybeClusterId,
         typename std::enable_if<!std::is_same<MaybeStride_, StaticNothing>::value, int>::type = 0,
         typename std::enable_if<!std::is_same<MaybePlan_, StaticNothing>::value, int>::type = 0,
-        typename std::enable_if<!std::is_same<MaybeStorage_, StaticNothing>::value, int>::type = 0,
-        typename std::enable_if<std::is_same<MaybeClusterId_, StaticNothing>::value, int>::type = 0>
+        typename std::enable_if<!std::is_same<MaybeStorage_, StaticNothing>::value, int>::type = 0
+            >
     [[nodiscard]] auto createStridedView() const {
         auto layout = maybePlan.value.getLayout();
         const auto [from, to] = getFromToForLayer<Layer>();
